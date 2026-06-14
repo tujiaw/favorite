@@ -97,7 +97,7 @@ export function sourceModalTemplate() {
       <section class="source-modal modal-card">
         <div class="modal-header">
           <div>
-            <h2 class="modal-title">创建</h2>
+            <h2 class="modal-title">创建收藏</h2>
             <p class="modal-subtitle">粘贴 URL、文本、代码、JSON，或直接粘贴图片。</p>
           </div>
           <button class="icon-button" type="button" data-action="close-source">×</button>
