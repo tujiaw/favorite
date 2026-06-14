@@ -4,13 +4,13 @@ import { createBaseItem, deleteFavorite, listFavorites, saveFavorite, uploadImag
 import { icons } from "./icons.js";
 import { state, localUser, setSessionUser } from "./state.js";
 import {
-  accountModalTemplate,
+  createModalTemplate,
   detailTemplate,
   itemCardTemplate,
   loginTemplate,
   sidebarTemplate,
-  sourceModalTemplate,
-  topbarTemplate
+  topbarTemplate,
+  vaultModalTemplate
 } from "./templates.js";
 import { classifyContent, domainFromUrl, makePreview, titleFromContent, withTimeout } from "./utils.js";
 
@@ -117,8 +117,8 @@ function render() {
         </section>
         ${detailTemplate(selected)}
       </div>
-      ${state.sourceModal ? sourceModalTemplate() : ""}
-      ${state.accountModal ? accountModalTemplate() : ""}
+      ${state.createModal ? createModalTemplate() : ""}
+      ${state.vaultModal ? vaultModalTemplate() : ""}
     </main>
   `;
   bindWorkspace();
@@ -149,9 +149,10 @@ function bindWorkspace() {
       render();
     });
   });
-  document.querySelectorAll("[data-action='focus-composer'], [data-action='open-source']").forEach((button) => {
+  document.querySelectorAll("[data-action='open-create']").forEach((button) => {
     button.addEventListener("click", () => {
-      state.sourceModal = true;
+      state.createModal = true;
+      state.modalTab = "favorite";
       render();
       window.setTimeout(() => document.querySelector("[data-field='quick-input']")?.focus(), 0);
     });
@@ -195,9 +196,11 @@ function bindWorkspace() {
     const file = event.target.files?.[0];
     if (file) await addImage(file);
   });
-  document.querySelector("[data-action='open-account']")?.addEventListener("click", () => {
-    state.accountModal = true;
-    render();
+  document.querySelectorAll("[data-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.modalTab = button.dataset.tab;
+      render();
+    });
   });
 
   document.querySelectorAll("[data-select]").forEach((button) => {
@@ -249,19 +252,29 @@ function bindDetail() {
 }
 
 function bindModal() {
-  document.querySelectorAll("[data-action='close-source']").forEach((button) => {
+  document.querySelectorAll("[data-action='close-create']").forEach((button) => {
     button.addEventListener("click", () => {
-      state.sourceModal = false;
+      state.createModal = false;
+      state.modalTab = "favorite";
       render();
     });
   });
-  document.querySelectorAll("[data-action='close-account']").forEach((button) => {
+  document.querySelectorAll("[data-action='open-vault']").forEach((button) => {
     button.addEventListener("click", () => {
-      state.accountModal = false;
+      state.vaultModal = true;
+      state.createModal = false;
       render();
     });
   });
+  document.querySelectorAll("[data-action='close-vault']").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.vaultModal = false;
+      render();
+    });
+  });
+  document.querySelector("[data-action='fetch-site']")?.addEventListener("click", fetchSiteInfo);
   document.querySelector("[data-form='account']")?.addEventListener("submit", createAccount);
+  document.querySelector("[data-form='vault']")?.addEventListener("submit", setVaultPassword);
 }
 
 async function signIn(provider) {
@@ -340,7 +353,8 @@ async function saveQuickInput() {
   });
   await saveFavorite(item);
   state.quickInput = "";
-  state.sourceModal = false;
+  state.createModal = false;
+  state.modalTab = "favorite";
   state.status = `已保存为${TYPES[type].label}`;
   await refreshItems(item.id);
   render();
@@ -365,7 +379,8 @@ async function addImage(file) {
     storage_path: uploaded.path
   });
   await saveFavorite(item);
-  state.sourceModal = false;
+  state.createModal = false;
+  state.modalTab = "favorite";
   state.status = "图片已保存";
   await refreshItems(item.id);
   render();
@@ -392,36 +407,95 @@ async function deleteSelected() {
 async function createAccount(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  const masterPassword = String(form.get("masterPassword") || "");
-  if (masterPassword.length < 8) {
-    state.status = "主密码至少需要 8 位";
-    state.accountModal = false;
-    render();
-    return;
-  }
   const url = String(form.get("url") || "");
-  const encrypted = await encryptSecret(masterPassword, {
-    password: String(form.get("password") || ""),
-    recoveryCodes: String(form.get("recoveryCodes") || ""),
-    privateNote: String(form.get("privateNote") || "")
+  const encrypted = await encryptSecret(state.vaultPassword, {
+    password: String(form.get("password") || "")
   });
   const item = createBaseItem({
     type: "account",
-    title: String(form.get("title") || "") || domainFromUrl(url) || "账号记录",
+    title: domainFromUrl(url) || "账号记录",
     content: String(form.get("username") || ""),
     source_url: url || null,
     domain: domainFromUrl(url),
     preview: "敏感字段已端到端加密",
+    note: String(form.get("note") || ""),
     encrypted_secret: encrypted
   });
   await saveFavorite(item);
-  state.accountModal = false;
-  state.vaultPassword = "";
+  state.createModal = false;
+  state.modalTab = "favorite";
   state.vaultUnlockedItem = null;
   state.revealedSecret = null;
   state.status = "账号记录已加密保存";
   await refreshItems(item.id);
   render();
+}
+
+async function setVaultPassword(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const password = String(form.get("vaultPassword") || "");
+  const confirm = String(form.get("confirmPassword") || "");
+  if (password.length < 8) {
+    state.status = "主密码至少需要 8 位";
+    render();
+    return;
+  }
+  if (password !== confirm) {
+    state.status = "两次输入的密码不一致";
+    render();
+    return;
+  }
+  state.vaultPassword = password;
+  state.vaultModal = false;
+  state.status = "保险箱主密码已设置";
+  render();
+}
+
+async function fetchSiteInfo() {
+  const urlInput = document.querySelector("[data-field='account-url']");
+  const url = urlInput?.value?.trim();
+  if (!url || !/^https?:\/\//i.test(url)) {
+    state.status = "请输入有效的 URL";
+    render();
+    return;
+  }
+
+  try {
+    const response = await fetch(url, { mode: "no-cors" });
+    const text = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, "text/html");
+    const title = doc.querySelector("title")?.textContent || domainFromUrl(url) || "网站";
+
+    const domain = domainFromUrl(url);
+    const siteIcon = document.querySelector("[data-field='site-icon']");
+    const siteTitle = document.querySelector("[data-field='site-title']");
+
+    if (siteIcon) {
+      const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+      siteIcon.innerHTML = `<img src="${faviconUrl}" alt="">`;
+    }
+    if (siteTitle) {
+      siteTitle.textContent = title;
+    }
+
+    state.status = `已获取: ${title}`;
+  } catch (error) {
+    const domain = domainFromUrl(url);
+    const siteIcon = document.querySelector("[data-field='site-icon']");
+    const siteTitle = document.querySelector("[data-field='site-title']");
+
+    if (siteIcon && domain) {
+      const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+      siteIcon.innerHTML = `<img src="${faviconUrl}" alt="">`;
+    }
+    if (siteTitle && domain) {
+      siteTitle.textContent = domain;
+    }
+
+    state.status = `已获取图标: ${domain || url}`;
+  }
 }
 
 async function unlockVault() {

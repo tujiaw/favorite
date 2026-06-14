@@ -55,16 +55,16 @@ button {
 .topbar-inner {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   margin: 0;
-  padding: 10px 8px 8px;
+  padding: 6px 8px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -77,16 +77,16 @@ button {
 }
 
 .brand-mark {
-  width: 42px;
-  height: 42px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #050505;
   color: white;
 }
 
 .brand-mark svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 
 .brand-title {
@@ -94,15 +94,15 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 500;
   letter-spacing: 0;
 }
 
 .brand-subtitle {
-  margin: 2px 0 0;
+  margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .topbar-actions {
@@ -124,24 +124,25 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 40px;
+  height: 32px;
   border: 0;
   border-radius: 999px;
   background: #050505;
-  padding: 0 18px;
+  padding: 0 14px;
   color: white;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .avatar {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #fff3d6;
   color: #111;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -150,7 +151,7 @@ button {
   grid-template-columns: 190px minmax(260px, 1fr) minmax(260px, 1fr);
   gap: 10px;
   width: 100%;
-  min-height: calc(100vh - 68px);
+  min-height: calc(100vh - 50px);
   margin: 0;
   padding: 0 6px 16px;
 }
@@ -179,7 +180,7 @@ button {
 .conversation-panel,
 .detail-panel {
   overflow: hidden;
-  height: calc(100vh - 86px);
+  height: calc(100vh - 65px);
 }
 
 .sources-panel {
@@ -340,12 +341,13 @@ button {
   font-size: 16px;
 }
 
-.source-modal .quick-input {
-  min-height: 220px;
+.source-modal .quick-input,
+.create-modal .quick-input {
+  min-height: 140px;
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
-  font-size: 16px;
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 14px;
 }
 
 .composer-actions,
@@ -382,8 +384,8 @@ button {
 }
 
 .icon-button {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -391,13 +393,13 @@ button {
 }
 
 .icon-button svg {
-  width: 19px;
-  height: 19px;
+  width: 16px;
+  height: 16px;
 }
 
 .icon-button.compact {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
 }
 
 .primary-button,
@@ -712,10 +714,149 @@ button {
   font-size: 14px;
 }
 
+.tab-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab-tab:hover {
+  background: #f1f3f4;
+}
+
+.tab-tab.active {
+  background: var(--soft-blue);
+  color: var(--blue);
+}
+
+.tab-tab svg {
+  width: 16px;
+  height: 16px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.url-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.url-input-group .input {
+  flex: 1;
+}
+
+.fetch-button {
+  width: 38px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.fetch-button:hover {
+  background: #f1f3f4;
+}
+
+.fetch-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.site-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafc;
+  min-height: 36px;
+}
+
+.site-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #f1f3f4;
+  flex: 0 0 auto;
+}
+
+.site-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.site-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-form .textarea {
+  min-height: 60px;
+}
+
+.account-form .input {
+  height: 34px;
+}
+
+.vault-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.vault-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.vault-active {
+  color: var(--green);
+}
+
+.vault-modal {
+  width: min(100%, 420px);
 }
 
 .hidden {
@@ -731,30 +872,40 @@ button {
   text-align: center;
 }
 
+.studio-title-row {
+  gap: 8px;
+}
+
 .studio-summary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  padding: 16px;
+  flex: 1 1 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
 }
 
 .studio-summary div {
   display: grid;
-  gap: 4px;
+  min-width: 0;
+  gap: 1px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 10px;
   background: #fbfcff;
-  padding: 12px;
+  padding: 4px 6px;
 }
 
 .studio-summary strong {
-  font-size: 20px;
+  font-size: 13px;
   line-height: 1;
 }
 
 .studio-summary span {
+  overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .add-note-button {
@@ -830,17 +981,8 @@ button {
     padding: 0 12px;
   }
 
-  .studio-summary {
-    padding: 8px;
-    gap: 4px;
-  }
-
   .studio-summary div {
-    padding: 8px 6px;
-  }
-
-  .studio-summary span {
-    font-size: 11px;
+    padding: 4px 5px;
   }
 }
 
@@ -886,9 +1028,20 @@ button {
   }
 
   .form-grid,
-  .two-cols,
-  .studio-summary {
+  .two-cols {
     grid-template-columns: 1fr;
+  }
+
+  .studio-title-row {
+    flex-wrap: wrap;
+    height: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .studio-summary {
+    order: 3;
+    flex-basis: 100%;
   }
 
   .span-2 {

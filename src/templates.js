@@ -25,6 +25,7 @@ export function loginTemplate() {
 export function topbarTemplate() {
   const subtitle = state.supabaseReady ? escapeHtml(state.user.email) : "本地演示模式";
   const favoriteCount = state.items.filter((item) => item.favorite).length;
+  const hasVault = state.vaultPassword && state.vaultPassword.length >= 8;
   return `
     <header class="topbar">
       <div class="topbar-inner">
@@ -36,7 +37,8 @@ export function topbarTemplate() {
           </div>
         </div>
         <div class="topbar-actions">
-          <button class="create-notebook" data-action="focus-composer">${icons.plus()} 创建收藏</button>
+          <button class="create-notebook" data-action="open-create">${icons.plus()} 创建</button>
+          <button class="icon-button ${hasVault ? "vault-active" : ""}" title="保险箱" data-action="open-vault">${icons.shield()}</button>
           <button class="icon-button" title="分享">${icons.share()}</button>
           <button class="icon-button" title="设置">${icons.settings()}</button>
           <button class="icon-button" title="应用">${icons.grid()}</button>
@@ -115,6 +117,60 @@ export function sourceModalTemplate() {
   `;
 }
 
+export function createModalTemplate() {
+  const isFavorite = state.modalTab === "favorite";
+  const hasVaultPassword = state.vaultPassword && state.vaultPassword.length >= 8;
+  return `
+    <div class="modal-backdrop">
+      <section class="create-modal modal-card">
+        <div class="modal-header">
+          <div class="tab-tabs">
+            <button class="tab-tab ${isFavorite ? "active" : ""}" data-tab="favorite">${icons.text()} 收藏</button>
+            <button class="tab-tab ${!isFavorite ? "active" : ""}" data-tab="account">${icons.key()} 账号</button>
+          </div>
+          <button class="icon-button" type="button" data-action="close-create">×</button>
+        </div>
+        ${isFavorite ? `
+          <textarea class="textarea quick-input" data-field="quick-input" placeholder="粘贴 URL、文本、代码、JSON，或直接粘贴图片。按 Ctrl/⌘ + Enter 保存。">${escapeHtml(state.quickInput)}</textarea>
+          <div class="composer-actions source-modal-actions">
+            <p class="status">${escapeHtml(state.status)}</p>
+            <input class="hidden" type="file" accept="image/*" data-field="image-file" />
+            <button class="icon-button" title="添加图片" data-action="choose-image">${icons.image()}</button>
+            <button class="primary-button" data-action="save-quick">${icons.plus()} 保存</button>
+          </div>
+        ` : `
+          ${!hasVaultPassword ? `
+            <div class="vault-notice">
+              <p>请先在右上角设置保险箱主密码</p>
+              <button class="icon-button" data-action="open-vault">${icons.shield()}</button>
+            </div>
+          ` : `
+            <form data-form="account">
+              <div class="account-form">
+                <div class="url-input-group">
+                  <input class="input" name="url" placeholder="URL" data-field="account-url" />
+                  <button class="fetch-button" type="button" data-action="fetch-site" title="获取网站信息">${icons.refresh()}</button>
+                </div>
+                <div class="site-preview" data-field="site-preview">
+                  <span class="site-icon" data-field="site-icon"></span>
+                  <span class="site-title" data-field="site-title">网站标题</span>
+                </div>
+                <input class="input" name="username" placeholder="用户名" />
+                <input class="input" name="password" placeholder="密码" type="password" required />
+                <textarea class="textarea" name="note" placeholder="备注，可选" rows="2"></textarea>
+              </div>
+              <div class="modal-actions">
+                <span class="status">敏感字段加密保存</span>
+                <button type="submit" class="primary-button">${icons.shield()} 加密保存</button>
+              </div>
+            </form>
+          `}
+        `}
+      </section>
+    </div>
+  `;
+}
+
 export function itemCardTemplate(item, selected) {
   return `
     <button class="item-card ${selected ? "selected" : ""}" data-select="${item.id}">
@@ -142,12 +198,8 @@ export function detailTemplate(item) {
   if (!item) {
     return `
       <aside class="detail-panel">
-        <div class="panel-title-row">
-          <h2>Studio</h2>
-          <button class="icon-button compact" title="折叠 Studio">${icons.panel()}</button>
-        </div>
-        ${studioToolsTemplate()}
-        <button class="add-note-button" data-action="open-source">${icons.text()} 创建收藏</button>
+        ${studioTitleTemplate()}
+        <button class="add-note-button" data-action="open-create">${icons.text()} 创建收藏</button>
         <div class="detail-empty">${icons.eye()}<p>选择一条收藏查看详情</p></div>
       </aside>
     `;
@@ -156,11 +208,7 @@ export function detailTemplate(item) {
   const isUnlocked = state.vaultUnlockedItem === item.id && state.revealedSecret;
   return `
     <aside class="detail-panel">
-      <div class="panel-title-row">
-        <h2>Studio</h2>
-        <button class="icon-button compact" title="折叠 Studio">${icons.panel()}</button>
-      </div>
-      ${studioToolsTemplate()}
+      ${studioTitleTemplate()}
       <div class="detail-header">
         <div class="detail-title-wrap">
           <span class="type-badge">${TYPES[item.type].icon()}</span>
@@ -236,6 +284,30 @@ export function detailTemplate(item) {
   `;
 }
 
+export function vaultModalTemplate() {
+  return `
+    <div class="modal-backdrop">
+      <form class="modal-card vault-modal" data-form="vault">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">保险箱设置</h2>
+            <p class="modal-subtitle">设置主密码后，账号密码将被加密保存</p>
+          </div>
+          <button class="icon-button" type="button" data-action="close-vault">×</button>
+        </div>
+        <div class="vault-form">
+          <input class="input" name="vaultPassword" placeholder="设置主密码，至少 8 位" type="password" required minlength="8" />
+          <input class="input" name="confirmPassword" placeholder="确认主密码" type="password" required minlength="8" />
+        </div>
+        <div class="modal-actions">
+          <span class="status">主密码仅保存在浏览器本地</span>
+          <button type="submit" class="primary-button">${icons.check()} 确认设置</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
 export function accountModalTemplate() {
   return `
     <div class="modal-backdrop">
@@ -268,20 +340,22 @@ export function accountModalTemplate() {
   `;
 }
 
-function studioToolsTemplate() {
+function studioTitleTemplate() {
   return `
-    <div class="studio-summary">
-      <div>
-        <strong>${state.items.length}</strong>
-        <span>全部收藏</span>
-      </div>
-      <div>
-        <strong>${state.items.filter((item) => item.favorite).length}</strong>
-        <span>已标星</span>
-      </div>
-      <div>
-        <strong>${new Set(state.items.flatMap((item) => item.tags)).size}</strong>
-        <span>标签</span>
+    <div class="panel-title-row studio-title-row">
+      <div class="studio-summary">
+        <div>
+          <strong>${state.items.length}</strong>
+          <span>全部收藏</span>
+        </div>
+        <div>
+          <strong>${state.items.filter((item) => item.favorite).length}</strong>
+          <span>已标星</span>
+        </div>
+        <div>
+          <strong>${new Set(state.items.flatMap((item) => item.tags)).size}</strong>
+          <span>标签</span>
+        </div>
       </div>
     </div>
   `;

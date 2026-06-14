@@ -18,7 +18,10 @@ export const state = {
   supabaseReady: false,
   isLoadingAuth: true,
   booted: false,
-  authSubscription: null
+  authSubscription: null,
+  createModal: false,
+  modalTab: "favorite",
+  vaultModal: false
 };
 
 export function setSessionUser(user) {

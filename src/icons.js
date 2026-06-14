@@ -17,6 +17,7 @@ export const icons = {
   key: () => svg('<circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3L22 7"></path>'),
   github: () => svg('<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.1-1.3-.4-2.6-1.3-3.5.4-1.1.4-2.4 0-3.5 0 0-1 0-3 1.5a10.4 10.4 0 0 0-5.4 0C8.3 2 7.3 2 7.3 2c-.4 1.1-.4 2.4 0 3.5A5 5 0 0 0 6 9c0 3.5 3 5.5 6 5.5-.4.5-.8 1.4-.8 2.5v5"></path><path d="M9 18c-4.5 2-5-2-7-2"></path>'),
   logout: () => svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path>'),
+  refresh: () => svg('<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path>'),
   search: () => svg('<circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path>'),
   star: (filled = false) => filled ? filledSvg('<path d="m12 2 3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01Z"></path>') : svg('<path d="m12 2 3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01Z"></path>'),
   tag: () => svg('<path d="M12.6 2.4 3 12l9 9 9.6-9.6a2 2 0 0 0 0-2.8l-6.2-6.2a2 2 0 0 0-2.8 0Z"></path><circle cx="8.5" cy="8.5" r=".5"></circle>'),
