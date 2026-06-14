@@ -88,7 +88,7 @@ function render() {
   const selected = selectedItem();
   const emptyText = state.query.trim()
     ? "没有匹配的收藏，试试换个关键词"
-    : "还没有收藏，点击“创建收藏”开始";
+    : "还没有收藏，点击“创建”开始";
   app.innerHTML = `
     <main class="app-shell">
       ${topbarTemplate()}
@@ -130,6 +130,17 @@ function bindLogin() {
   });
 }
 
+function restoreInputFocus(selector, cursorStart, cursorEnd) {
+  window.requestAnimationFrame(() => {
+    const input = document.querySelector(selector);
+    if (!input) return;
+    input.focus();
+    if (typeof cursorStart === "number" && typeof cursorEnd === "number") {
+      input.setSelectionRange(cursorStart, cursorEnd);
+    }
+  });
+}
+
 function bindWorkspace() {
   document.querySelector("[data-action='sign-out']")?.addEventListener("click", signOut);
   document.querySelectorAll("[data-action='toggle-sidebar']").forEach((button) => {
@@ -145,9 +156,19 @@ function bindWorkspace() {
       window.setTimeout(() => document.querySelector("[data-field='quick-input']")?.focus(), 0);
     });
   });
-  document.querySelector("[data-field='query']")?.addEventListener("input", (event) => {
+  const searchInput = document.querySelector("[data-field='query']");
+  searchInput?.addEventListener("input", (event) => {
+    const cursorStart = event.target.selectionStart;
+    const cursorEnd = event.target.selectionEnd;
+    state.query = event.target.value;
+    if (event.isComposing) return;
+    render();
+    restoreInputFocus("[data-field='query']", cursorStart, cursorEnd);
+  });
+  searchInput?.addEventListener("compositionend", (event) => {
     state.query = event.target.value;
     render();
+    restoreInputFocus("[data-field='query']", event.target.selectionStart, event.target.selectionEnd);
   });
   document.querySelectorAll("[data-type-filter]").forEach((button) => {
     button.addEventListener("click", () => {

@@ -1,15 +1,10 @@
 {
-  "routes": [
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
     {
-      "src": "/config.js",
-      "dest": "/api/config.js"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/:path*",
+      "destination": "/index.html"
     }
   ]
 }
