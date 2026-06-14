@@ -1171,8 +1171,8 @@ button {
   }
 
   .studio-summary {
-    order: 3;
-    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: 12px;
   }
 
   .span-2 {
