@@ -38,6 +38,15 @@ boot();
 
 async function boot() {
   render();
+  if (new URLSearchParams(window.location.search).get("demo") === "1") {
+    state.supabaseReady = false;
+    state.user = localUser();
+    state.isLoadingAuth = false;
+    state.booted = true;
+    await refreshItems();
+    render();
+    return;
+  }
   state.supabaseReady = Boolean(window.FAVORITE_SUPABASE?.url && window.FAVORITE_SUPABASE?.anonKey);
   if (state.supabaseReady) {
     try {
@@ -56,7 +65,10 @@ async function boot() {
       const {
         data: { user },
         error
-      } = await state.supabase.auth.getUser();
+      } = await withTimeout(state.supabase.auth.getUser(), 5000, {
+        data: { user: null },
+        error: new Error("Supabase getUser timed out")
+      });
       if (error) console.error("Error fetching user:", error);
       setSessionUser(user ?? null);
     } catch (error) {
@@ -72,6 +84,15 @@ async function boot() {
   state.booted = true;
   if (state.user) await refreshItems();
   render();
+}
+
+function withTimeout(promise, timeoutMs, fallback) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      window.setTimeout(() => resolve(fallback), timeoutMs);
+    })
+  ]);
 }
 
 function setSessionUser(user) {
@@ -108,13 +129,25 @@ function render() {
       <div class="workspace">
         ${sidebarTemplate()}
         <section class="content">
-          ${composerTemplate()}
-          <div class="item-list">
-            ${
-              filtered.length
-                ? filtered.map((item) => itemCardTemplate(item, selected?.id === item.id)).join("")
-                : `<div class="empty-list">还没有匹配的收藏</div>`
-            }
+          <div class="conversation-panel">
+            <div class="conversation-head">
+              <h2>收藏列表</h2>
+              <div class="conversation-tools">
+                <button class="icon-button" title="筛选">${icons.sliders()}</button>
+                <button class="icon-button" title="更多">${icons.more()}</button>
+              </div>
+            </div>
+            <div class="conversation-body">
+              <div class="item-list">
+                ${
+                  filtered.length
+                    ? filtered.map((item) => itemCardTemplate(item, selected?.id === item.id)).join("")
+                    : `<div class="empty-list">从左侧添加来源，或在下方输入框保存第一条资料</div>`
+                }
+              </div>
+            </div>
+            ${composerTemplate()}
+            <p class="notebook-note">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
           </div>
         </section>
         ${detailTemplate(selected)}
@@ -146,15 +179,25 @@ function loginTemplate() {
 
 function topbarTemplate() {
   const subtitle = state.supabaseReady ? escapeHtml(state.user.email) : "本地演示模式";
+  const favoriteCount = state.items.filter((item) => item.favorite).length;
   return `
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
           <div class="brand-mark">${icons.archive()}</div>
           <div>
-            <h1 class="brand-title">个人收藏中心</h1>
+            <h1 class="brand-title">小查AI智能标注系统界面</h1>
             <p class="brand-subtitle">${subtitle}</p>
           </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="create-notebook" data-action="focus-composer">${icons.plus()} 创建笔记本</button>
+          <button class="icon-button" title="分享">${icons.share()}</button>
+          <button class="icon-button" title="设置">${icons.settings()}</button>
+          <button class="icon-button" title="应用">${icons.grid()}</button>
+          <span class="avatar" title="${escapeAttr(subtitle)}">悟</span>
+          <span class="topbar-chip">${state.items.length} 条</span>
+          <span class="topbar-chip">${favoriteCount} 收藏</span>
         </div>
         <button class="icon-button" title="退出登录" data-action="sign-out">${icons.logout()}</button>
       </div>
@@ -166,14 +209,25 @@ function sidebarTemplate() {
   const allTags = Array.from(new Set(state.items.flatMap((item) => item.tags))).sort((a, b) => a.localeCompare(b));
   return `
     <aside class="sidebar">
-      <section class="panel">
+      <section class="panel sources-panel">
+        <div class="panel-title-row">
+          <h2>来源</h2>
+          <button class="icon-button compact" title="折叠来源">${icons.panel()}</button>
+        </div>
+        <button class="add-source-button" data-action="focus-composer">${icons.plus()} 添加来源</button>
+        <div class="source-search-card">
+          <p>在网络中搜索新来源</p>
+          <div class="source-search-actions">
+            <button class="mini-pill">${icons.globe()} ${icons.chevronDown()}</button>
+            <button class="mini-pill">${icons.sparkles()} ${icons.chevronDown()}</button>
+            <button class="round-disabled">${icons.search()}</button>
+          </div>
+        </div>
         <div class="search-wrap">
           ${icons.search()}
           <input class="input search-input" data-field="query" placeholder="搜索标题、内容、标签和备注" value="${escapeAttr(state.query)}" />
         </div>
-      </section>
-      <section class="panel">
-        <div class="section-label">类型</div>
+        <div class="section-label">资料类型</div>
         <div class="nav-list">
           ${Object.entries(TYPES)
             .map(
@@ -185,12 +239,14 @@ function sidebarTemplate() {
             )
             .join("")}
         </div>
-      </section>
-      <section class="panel">
+        <div class="source-select-row">
+          <span>全选</span>
+          <span class="check-box">${icons.check()}</span>
+        </div>
         <button class="nav-button ${state.favoriteOnly ? "active" : ""}" data-action="toggle-favorite-filter">
           ${icons.star()} 只看收藏
         </button>
-        <div class="section-label">${icons.tag()} 标签</div>
+        <div class="section-label">${icons.tag()} 标签索引</div>
         <div class="tags">
           ${
             allTags.length
@@ -217,6 +273,7 @@ function composerTemplate() {
       <textarea class="textarea quick-input" data-field="quick-input" placeholder="粘贴 URL、文本、代码、JSON，或直接粘贴图片。按 Ctrl/⌘ + Enter 保存。">${escapeHtml(state.quickInput)}</textarea>
       <div class="composer-actions">
         <p class="status">${escapeHtml(state.status)}</p>
+        <span class="source-count">${state.items.length} 个来源</span>
         <div class="button-row">
           <input class="hidden" type="file" accept="image/*" data-field="image-file" />
           <button class="icon-button" title="添加图片" data-action="choose-image">${icons.image()}</button>
@@ -255,7 +312,13 @@ function detailTemplate(item) {
   if (!item) {
     return `
       <aside class="detail-panel">
-        <div class="detail-empty">${icons.eye()}<p>选择一条收藏查看详情</p></div>
+        <div class="panel-title-row">
+          <h2>Studio</h2>
+          <button class="icon-button compact" title="折叠 Studio">${icons.panel()}</button>
+        </div>
+        ${studioToolsTemplate()}
+        <button class="add-note-button" data-action="open-account">${icons.text()} 添加笔记</button>
+        <div class="detail-empty">${icons.eye()}<p>选择一条资料查看详情</p></div>
       </aside>
     `;
   }
@@ -263,6 +326,11 @@ function detailTemplate(item) {
   const isUnlocked = state.vaultUnlockedItem === item.id && state.revealedSecret;
   return `
     <aside class="detail-panel">
+      <div class="panel-title-row">
+        <h2>Studio</h2>
+        <button class="icon-button compact" title="折叠 Studio">${icons.panel()}</button>
+      </div>
+      ${studioToolsTemplate()}
       <div class="detail-header">
         <div class="detail-title-wrap">
           <span class="type-badge">${TYPES[item.type].icon()}</span>
@@ -338,6 +406,36 @@ function detailTemplate(item) {
   `;
 }
 
+function studioToolsTemplate() {
+  const tools = [
+    ["音频...", icons.audio(), "blue"],
+    ["演示...", icons.book(), "sand"],
+    ["视频...", icons.video(), "green"],
+    ["思维...", icons.nodes(), "pink"],
+    ["报告", icons.report(), "sand"],
+    ["闪卡", icons.card(), "rose"],
+    ["测验", icons.quiz(), "cyan"],
+    ["信息图", icons.chart(), "pink"],
+    ["数据...", icons.table(), "blue"]
+  ];
+  return `
+    <div class="studio-grid">
+      ${tools
+        .map(
+          ([label, icon, tone], index) => `
+            <button class="studio-tile ${tone}">
+              <span>${icon}</span>
+              <strong>${label}</strong>
+              ${index === 1 || index === 7 ? `<em>Beta 版</em>` : ""}
+              <i>${icons.chevronRight()}</i>
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function secretTemplate(secret) {
   return `
     <div class="secret-row">
@@ -389,6 +487,13 @@ function bindLogin() {
 
 function bindWorkspace() {
   document.querySelector("[data-action='sign-out']")?.addEventListener("click", signOut);
+  document.querySelectorAll("[data-action='focus-composer']").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = document.querySelector("[data-field='quick-input']");
+      input?.scrollIntoView({ behavior: "smooth", block: "center" });
+      input?.focus();
+    });
+  });
   document.querySelector("[data-field='query']")?.addEventListener("input", (event) => {
     state.query = event.target.value;
     render();
@@ -963,7 +1068,24 @@ function iconMap() {
     trash: () => svg('<path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>'),
     lock: () => svg('<rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>'),
     unlock: () => svg('<rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path>'),
-    shield: () => svg('<path d="M20 13c0 5-3.5 7.5-7.7 8.9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1Z"></path><path d="m9 12 2 2 4-4"></path>')
+    shield: () => svg('<path d="M20 13c0 5-3.5 7.5-7.7 8.9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1Z"></path><path d="m9 12 2 2 4-4"></path>'),
+    sliders: () => svg('<path d="M4 21v-7"></path><path d="M4 10V3"></path><path d="M12 21v-9"></path><path d="M12 8V3"></path><path d="M20 21v-5"></path><path d="M20 12V3"></path><path d="M2 14h4"></path><path d="M10 8h4"></path><path d="M18 16h4"></path>'),
+    more: () => svg('<circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle>'),
+    share: () => svg('<circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 13.5 6.8 4"></path><path d="m15.4 6.5-6.8 4"></path>'),
+    settings: () => svg('<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.5 1Z"></path>'),
+    grid: () => svg('<circle cx="5" cy="5" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="19" cy="5" r="1"></circle><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="19" r="1"></circle><circle cx="12" cy="19" r="1"></circle><circle cx="19" cy="19" r="1"></circle>'),
+    panel: () => svg('<rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M12 3v18"></path>'),
+    chevronDown: () => svg('<path d="m6 9 6 6 6-6"></path>'),
+    chevronRight: () => svg('<path d="m9 18 6-6-6-6"></path>'),
+    audio: () => svg('<path d="M2 10v4"></path><path d="M6 7v10"></path><path d="M10 4v16"></path><path d="M14 8v8"></path><path d="M18 11v2"></path><path d="M22 9v6"></path>'),
+    book: () => svg('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M4 4v15.5"></path><path d="M20 22V6a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 6.5"></path>'),
+    video: () => svg('<rect width="16" height="12" x="3" y="6" rx="2"></rect><path d="m15 10 5-3v10l-5-3Z"></path>'),
+    nodes: () => svg('<rect width="6" height="6" x="3" y="3" rx="1"></rect><rect width="6" height="6" x="15" y="3" rx="1"></rect><rect width="6" height="6" x="9" y="15" rx="1"></rect><path d="M9 6h6"></path><path d="m6 9 6 6 6-6"></path>'),
+    report: () => svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path>'),
+    card: () => svg('<rect width="18" height="14" x="3" y="5" rx="2"></rect><path d="M7 9h5"></path><path d="M7 13h3"></path><path d="m16 9 1 1 2-2"></path>'),
+    quiz: () => svg('<path d="M9.1 9a3 3 0 1 1 5.8 1c-.7 1.3-2.1 1.7-2.6 2.7"></path><path d="M12 17h.01"></path><rect width="18" height="18" x="3" y="3" rx="2"></rect>'),
+    chart: () => svg('<path d="M3 3v18h18"></path><rect width="3" height="7" x="7" y="10"></rect><rect width="3" height="12" x="13" y="5"></rect><rect width="3" height="4" x="19" y="13"></rect>'),
+    table: () => svg('<rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path>')
   };
 }
 

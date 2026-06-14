@@ -23,6 +23,20 @@ SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 2. 在 Supabase SQL Editor 执行 `supabase/schema.sql`。
 3. 在 Supabase Auth 中启用 GitHub OAuth Provider。
+   - 在 GitHub Developer settings 创建 OAuth App。
+   - GitHub OAuth App 的 Authorization callback URL 填：
+
+```text
+https://你的项目 ref.supabase.co/auth/v1/callback
+```
+
+本项目当前 Supabase 回调 URL 为：
+
+```text
+https://mtcrypfaiincjdboqidu.supabase.co/auth/v1/callback
+```
+
+   - 回到 Supabase Dashboard，在 Authentication -> Providers -> GitHub 中开启 GitHub，并填入 GitHub OAuth App 的 Client ID 和 Client Secret。
 4. 在 Supabase Auth URL Configuration 中加入本地和生产回调地址，例如：
 
 ```text
@@ -36,6 +50,20 @@ https://your-app-domain.vercel.app/
 Supabase 未配置时，OAuth 按钮会进入本地演示模式；配置后会调用真实 GitHub OAuth。
 
 `.env.local` 已被 `.gitignore` 忽略，不要提交真实配置。Supabase publishable key 会被浏览器用于 OAuth 和客户端请求，它不是 service role secret；数据保护依赖 `supabase/schema.sql` 中的 RLS 策略。
+
+### GitHub 登录常见错误
+
+如果本地登录返回：
+
+```json
+{
+  "code": 400,
+  "error_code": "validation_failed",
+  "msg": "Unsupported provider: provider is not enabled"
+}
+```
+
+说明 Supabase 的 GitHub Provider 没有启用，或 GitHub Provider 中缺少有效的 Client ID/Client Secret。按上面的第 3 步启用后再重试。
 
 ## 验证
 
