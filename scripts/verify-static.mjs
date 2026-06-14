@@ -3,6 +3,14 @@ import { existsSync, readFileSync } from "node:fs";
 const requiredFiles = [
   "index.html",
   "app.js",
+  "src/controller.js",
+  "src/templates.js",
+  "src/data.js",
+  "src/crypto.js",
+  "src/utils.js",
+  "src/state.js",
+  "src/constants.js",
+  "src/icons.js",
   "styles.css",
   "config.js",
   "manifest.webmanifest",
@@ -17,7 +25,16 @@ if (missing.length) {
   process.exit(1);
 }
 
-const app = readFileSync("app.js", "utf8");
+const app = [
+  "app.js",
+  "src/controller.js",
+  "src/templates.js",
+  "src/data.js",
+  "src/crypto.js",
+  "src/utils.js"
+]
+  .map((file) => readFileSync(file, "utf8"))
+  .join("\n");
 const requiredSnippets = [
   "signInWithOAuth",
   "auth.getUser",

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Personal favorite center for links, text, images, snippets, and encrypted account secrets.",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.mjs",
     "build": "node scripts/verify-static.mjs",

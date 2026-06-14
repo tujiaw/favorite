@@ -10,6 +10,7 @@ const liveReloadClients = new Set();
 const watchedFiles = [
   "index.html",
   "app.js",
+  "src",
   "styles.css",
   ".env.local",
   "manifest.webmanifest",
@@ -153,11 +154,12 @@ for (const relativeFile of watchedFiles) {
   const filePath = join(root, relativeFile);
   if (!existsSync(filePath)) continue;
 
-  watch(filePath, { persistent: true }, () => {
+  const isDirectory = statSync(filePath).isDirectory();
+  watch(filePath, { persistent: true, recursive: isDirectory }, (_event, filename) => {
     clearTimeout(debounceTimers.get(relativeFile));
     debounceTimers.set(
       relativeFile,
-      setTimeout(() => notifyReload(relativeFile), 120)
+      setTimeout(() => notifyReload(filename ? `${relativeFile}/${filename}` : relativeFile), 120)
     );
   });
 }

@@ -1,4 +1,4 @@
-module.exports = function configHandler(_request, response) {
+export default function configHandler(_request, response) {
   const config = {
     url: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     anonKey:

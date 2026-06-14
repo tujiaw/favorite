@@ -73,6 +73,17 @@ npm run build
 
 该命令会检查静态应用关键文件、OAuth/加密/图片上传行为标记和 Supabase RLS SQL。
 
+## 目录结构
+
+- `app.js`：浏览器入口，只负责安装图标样式并启动应用。
+- `src/controller.js`：应用启动、渲染调度、事件绑定和用户操作。
+- `src/templates.js`：页面 HTML 模板。
+- `src/data.js`：Supabase/localStorage 数据访问和图片上传。
+- `src/crypto.js`：保险箱端到端加密与解密。
+- `src/utils.js`：内容识别、URL/标题/预览处理和通用工具。
+- `src/state.js`：全局运行状态。
+- `src/constants.js`、`src/icons.js`：类型配置和图标。
+
 ## 设计文档
 
 设计文档位于 `docs/design/personal-favorite-center.md`。
