@@ -12,8 +12,9 @@ export const state = {
   sourceModal: false,
   accountModal: false,
   vaultPassword: "",
-  vaultUnlockedItem: null,
+  vaultExpiresAt: null,
   revealedSecret: null,
+  passwordVisible: false,
   supabase: null,
   supabaseReady: false,
   isLoadingAuth: true,
@@ -21,7 +22,8 @@ export const state = {
   authSubscription: null,
   createModal: false,
   modalTab: "favorite",
-  vaultModal: false
+  vaultModal: false,
+  deleteConfirm: false
 };
 
 export function setSessionUser(user) {

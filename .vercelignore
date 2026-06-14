@@ -1,0 +1,13 @@
+# Ignore directories
+artifacts/
+.git/
+
+# Ignore config files that shouldn't affect static build
+.env.*
+.env.example
+config.example.js
+config.local.js
+
+# Ignore development files
+docs/
+supabase/

@@ -5,6 +5,7 @@ import { icons } from "./icons.js";
 import { state, localUser, setSessionUser } from "./state.js";
 import {
   createModalTemplate,
+  deleteConfirmTemplate,
   detailTemplate,
   itemCardTemplate,
   loginTemplate,
@@ -22,6 +23,8 @@ export function startApp(rootElement) {
 }
 
 async function boot() {
+  // 加载保险箱密码
+  loadVaultPassword();
   render();
   if (new URLSearchParams(window.location.search).get("demo") === "1") {
     state.supabaseReady = false;
@@ -119,6 +122,7 @@ function render() {
       </div>
       ${state.createModal ? createModalTemplate() : ""}
       ${state.vaultModal ? vaultModalTemplate() : ""}
+      ${state.deleteConfirm ? deleteConfirmTemplate() : ""}
     </main>
   `;
   bindWorkspace();
@@ -204,11 +208,20 @@ function bindWorkspace() {
   });
 
   document.querySelectorAll("[data-select]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       state.selectedId = button.dataset.select;
-      state.vaultUnlockedItem = null;
-      state.revealedSecret = null;
-      state.vaultPassword = "";
+      state.passwordVisible = false;
+      // 如果是账号且有加密数据，尝试解密
+      const item = state.items.find(i => i.id === button.dataset.select);
+      if (item?.type === "account" && item.encrypted_secret && state.vaultPassword) {
+        try {
+          state.revealedSecret = await decryptSecret(state.vaultPassword, item.encrypted_secret);
+        } catch {
+          state.revealedSecret = null;
+        }
+      } else {
+        state.revealedSecret = null;
+      }
       render();
     });
   });
@@ -223,11 +236,7 @@ function bindDetail() {
   document.querySelector("[data-action='toggle-favorite']")?.addEventListener("click", () => updateSelected({ favorite: !item.favorite }));
   document.querySelector("[data-action='copy-content']")?.addEventListener("click", () => copyText(item.content));
   document.querySelector("[data-action='delete-selected']")?.addEventListener("click", deleteSelected);
-  document.querySelector("[data-action='unlock-vault']")?.addEventListener("click", unlockVault);
-  document.querySelector("[data-action='copy-password']")?.addEventListener("click", copyPassword);
-  document.querySelector("[data-field='vault-password']")?.addEventListener("input", (event) => {
-    state.vaultPassword = event.target.value;
-  });
+  document.querySelector("[data-action='toggle-password']")?.addEventListener("click", togglePasswordVisibility);
   document.querySelectorAll("[data-edit]").forEach((field) => {
     field.addEventListener("change", async (event) => {
       const key = event.target.dataset.edit;
@@ -272,6 +281,18 @@ function bindModal() {
       render();
     });
   });
+  document.querySelectorAll("[data-action='clear-vault']").forEach((button) => {
+    button.addEventListener("click", clearVaultPassword);
+  });
+  document.querySelectorAll("[data-action='cancel-delete']").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.deleteConfirm = false;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-action='confirm-delete']").forEach((button) => {
+    button.addEventListener("click", confirmDelete);
+  });
   document.querySelector("[data-action='fetch-site']")?.addEventListener("click", fetchSiteInfo);
   document.querySelector("[data-form='account']")?.addEventListener("submit", createAccount);
   document.querySelector("[data-form='vault']")?.addEventListener("submit", setVaultPassword);
@@ -315,7 +336,6 @@ async function signOut() {
   state.user = state.supabaseReady ? null : localUser();
   state.items = [];
   state.selectedId = null;
-  state.vaultUnlockedItem = null;
   state.revealedSecret = null;
   state.isLoadingAuth = false;
   if (state.user) await refreshItems();
@@ -398,7 +418,16 @@ async function updateSelected(patch) {
 async function deleteSelected() {
   const item = selectedItem();
   if (!item) return;
+  state.deleteConfirm = true;
+  render();
+}
+
+async function confirmDelete() {
+  const item = selectedItem();
+  if (!item) return;
   await deleteFavorite(item.id);
+  state.deleteConfirm = false;
+  state.selectedId = null;
   state.status = "已删除收藏";
   await refreshItems();
   render();
@@ -424,7 +453,6 @@ async function createAccount(event) {
   await saveFavorite(item);
   state.createModal = false;
   state.modalTab = "favorite";
-  state.vaultUnlockedItem = null;
   state.revealedSecret = null;
   state.status = "账号记录已加密保存";
   await refreshItems(item.id);
@@ -436,6 +464,8 @@ async function setVaultPassword(event) {
   const form = new FormData(event.currentTarget);
   const password = String(form.get("vaultPassword") || "");
   const confirm = String(form.get("confirmPassword") || "");
+  const expireTime = Number(form.get("expireTime") || "3600000");
+
   if (password.length < 8) {
     state.status = "主密码至少需要 8 位";
     render();
@@ -446,9 +476,51 @@ async function setVaultPassword(event) {
     render();
     return;
   }
+
   state.vaultPassword = password;
+  state.vaultExpiresAt = expireTime === -1 ? null : Date.now() + expireTime;
+
+  // 保存到 localStorage
+  const vaultData = {
+    password: btoa(password),
+    expiresAt: state.vaultExpiresAt
+  };
+  localStorage.setItem("favorite-vault", JSON.stringify(vaultData));
+
   state.vaultModal = false;
-  state.status = "保险箱主密码已设置";
+  state.status = `保险箱主密码已设置${expireTime === -1 ? "（永不过期）" : ""}`;
+  render();
+}
+
+function loadVaultPassword() {
+  try {
+    const saved = localStorage.getItem("favorite-vault");
+    if (!saved) return;
+
+    const vaultData = JSON.parse(saved);
+    const { password, expiresAt } = vaultData;
+
+    // 检查是否过期
+    if (expiresAt && Date.now() > expiresAt) {
+      localStorage.removeItem("favorite-vault");
+      state.vaultPassword = "";
+      state.vaultExpiresAt = null;
+      return;
+    }
+
+    state.vaultPassword = atob(password);
+    state.vaultExpiresAt = expiresAt;
+  } catch (error) {
+    console.error("加载保险箱密码失败:", error);
+    localStorage.removeItem("favorite-vault");
+  }
+}
+
+function clearVaultPassword() {
+  localStorage.removeItem("favorite-vault");
+  state.vaultPassword = "";
+  state.vaultExpiresAt = null;
+  state.status = "保险箱主密码已清除";
   render();
 }
 
@@ -498,18 +570,8 @@ async function fetchSiteInfo() {
   }
 }
 
-async function unlockVault() {
-  const item = selectedItem();
-  if (!item?.encrypted_secret) return;
-  try {
-    state.revealedSecret = await decryptSecret(state.vaultPassword, item.encrypted_secret);
-    state.vaultUnlockedItem = item.id;
-    state.status = "保险箱已解锁";
-  } catch {
-    state.revealedSecret = null;
-    state.vaultUnlockedItem = null;
-    state.status = "主密码错误，无法解密";
-  }
+function togglePasswordVisibility() {
+  state.passwordVisible = !state.passwordVisible;
   render();
 }
 

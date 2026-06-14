@@ -199,92 +199,148 @@ export function detailTemplate(item) {
     return `
       <aside class="detail-panel">
         ${studioTitleTemplate()}
-        <button class="add-note-button" data-action="open-create">${icons.text()} 创建收藏</button>
-        <div class="detail-empty">${icons.eye()}<p>选择一条收藏查看详情</p></div>
+        <div class="detail-scroll">
+          <button class="add-note-button" data-action="open-create">${icons.text()} 创建收藏</button>
+          <div class="detail-empty">${icons.eye()}<p>选择一条收藏查看详情</p></div>
+        </div>
       </aside>
     `;
   }
 
-  const isUnlocked = state.vaultUnlockedItem === item.id && state.revealedSecret;
   return `
     <aside class="detail-panel">
       ${studioTitleTemplate()}
-      <div class="detail-header">
-        <div class="detail-title-wrap">
-          <span class="type-badge">${TYPES[item.type].icon()}</span>
-          <div class="min-w-0">
-            <p class="detail-type">${TYPES[item.type].label}</p>
-            <h2 class="detail-title">${escapeHtml(item.title)}</h2>
+      <div class="detail-scroll">
+        <div class="detail-header">
+          <div class="detail-title-wrap">
+            <span class="type-badge">${TYPES[item.type].icon()}</span>
+            <div class="min-w-0">
+              <p class="detail-type">${TYPES[item.type].label}</p>
+              <h2 class="detail-title">${escapeHtml(item.title)}</h2>
+            </div>
           </div>
+          <button class="icon-button" title="收藏" data-action="toggle-favorite">
+            ${icons.heart(item.favorite)}
+          </button>
         </div>
-        <button class="icon-button" title="收藏" data-action="toggle-favorite">
-          ${icons.heart(item.favorite)}
-        </button>
-      </div>
-      <label class="field">
-        <span>标题</span>
-        <input class="input" data-edit="title" value="${escapeAttr(item.title)}" />
-      </label>
-      <label class="field">
-        <span>类型</span>
-        <select class="select" data-edit="type">
-          ${Object.keys(TYPES)
-            .filter((type) => type !== "all")
-            .map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${TYPES[type].label}</option>`)
-            .join("")}
-        </select>
-      </label>
-      ${
-        item.type === "image"
-          ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
-          : `<label class="field">
-              <span>内容</span>
-              <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
-            </label>`
-      }
-      <label class="field">
-        <span>标签</span>
-        <input class="input" data-edit="tags" placeholder="逗号分隔，例如：工作, 常用" value="${escapeAttr(item.tags.join(", "))}" />
-      </label>
-      <label class="field">
-        <span>备注</span>
-        <textarea class="textarea" data-edit="note">${escapeHtml(item.note)}</textarea>
-      </label>
-      ${
-        item.type === "account"
-          ? `
-            <section class="vault-box">
-              <div class="vault-title">${isUnlocked ? icons.unlock() : icons.lock()} 账号保险箱</div>
-              ${
-                item.encrypted_secret
-                  ? isUnlocked
-                    ? secretTemplate(state.revealedSecret)
-                    : `
-                      <div class="vault-unlock">
-                        <input class="input" type="password" data-field="vault-password" placeholder="输入主密码" value="${escapeAttr(state.vaultPassword)}" />
-                        <button class="icon-button primary-round" data-action="unlock-vault" title="解锁">${icons.shield()}</button>
-                      </div>
-                    `
-                  : `<p class="status">这条账号记录没有加密字段。</p>`
-              }
-            </section>
-          `
-          : ""
-      }
-      <div class="two-cols">
-        <button class="outline-button" data-action="copy-content">${icons.copy()} 复制</button>
+        <label class="field">
+          <span>标题</span>
+          <input class="input" data-edit="title" value="${escapeAttr(item.title)}" />
+        </label>
+        <label class="field">
+          <span>类型</span>
+          <select class="select" data-edit="type">
+            ${Object.keys(TYPES)
+              .filter((type) => type !== "all" && (type !== "account" || item.type === "account"))
+              .map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${TYPES[type].label}</option>`)
+              .join("")}
+          </select>
+        </label>
         ${
-          item.source_url
-            ? `<a class="outline-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
-            : `<button class="outline-button" disabled>${icons.eyeOff()} 无链接</button>`
+          item.type === "image"
+            ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
+            : `<label class="field">
+                <span>内容</span>
+                <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
+              </label>`
         }
-        <button class="danger-button span-2" data-action="delete-selected">${icons.trash()} 删除</button>
+        <label class="field">
+          <span>标签</span>
+          <input class="input" data-edit="tags" placeholder="逗号分隔，例如：工作, 常用" value="${escapeAttr(item.tags.join(", "))}" />
+        </label>
+        <label class="field">
+          <span>备注</span>
+          <textarea class="textarea" data-edit="note">${escapeHtml(item.note)}</textarea>
+        </label>
+        ${
+          item.type === "account"
+            ? `
+              <section class="vault-box">
+                <div class="vault-title">${icons.key()} 账号信息</div>
+                <div class="account-fields">
+                  <div class="account-field">
+                    <label class="field-label">用户名</label>
+                    <div class="field-value">${escapeHtml(item.content)}</div>
+                  </div>
+                  ${
+                    item.encrypted_secret
+                      ? `
+                        <div class="account-field">
+                          <label class="field-label">密码</label>
+                          <div class="password-field">
+                            <input class="password-input" type="${state.passwordVisible ? "text" : "password"}" value="${escapeHtml(state.revealedSecret?.password || "••••••••")}" readonly />
+                            <button class="icon-button" data-action="toggle-password" title="${state.passwordVisible ? "隐藏密码" : "显示密码"}">
+                              ${state.passwordVisible ? icons.eyeOff() : icons.eye()}
+                            </button>
+                          </div>
+                        </div>
+                      `
+                      : ""
+                  }
+                  ${
+                    item.source_url
+                      ? `
+                        <div class="account-field">
+                          <label class="field-label">网站</label>
+                          <div class="field-value">
+                            <a href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(item.source_url)}</a>
+                          </div>
+                        </div>
+                      `
+                      : ""
+                  }
+                </div>
+              </section>
+            `
+            : ""
+        }
+        <div class="two-cols">
+          <button class="outline-button" data-action="copy-content">${icons.copy()} 复制</button>
+          ${
+            item.source_url
+              ? `<a class="outline-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
+              : `<button class="outline-button" disabled>${icons.eyeOff()} 无链接</button>`
+          }
+          <button class="danger-button span-2" data-action="delete-selected">${icons.trash()} 删除</button>
+        </div>
       </div>
     </aside>
   `;
 }
 
+export function deleteConfirmTemplate() {
+  const item = state.items.find(i => i.id === state.selectedId);
+  if (!item) return "";
+  return `
+    <div class="modal-backdrop">
+      <div class="modal-card confirm-modal">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">确认删除</h2>
+            <p class="modal-subtitle">此操作无法撤销</p>
+          </div>
+        </div>
+        <div class="confirm-content">
+          <p>确定要删除这条收藏吗？</p>
+          <div class="confirm-item">
+            <span class="type-badge">${TYPES[item.type].icon()}</span>
+            <div class="confirm-item-info">
+              <div class="confirm-item-title">${escapeHtml(item.title)}</div>
+              <div class="confirm-item-preview">${escapeHtml(item.preview || item.content)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="outline-button" data-action="cancel-delete">取消</button>
+          <button class="danger-button" data-action="confirm-delete">${icons.trash()} 确认删除</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function vaultModalTemplate() {
+  const savedUntil = state.vaultExpiresAt ? new Date(state.vaultExpiresAt).toLocaleString("zh-CN") : null;
   return `
     <div class="modal-backdrop">
       <form class="modal-card vault-modal" data-form="vault">
@@ -295,13 +351,31 @@ export function vaultModalTemplate() {
           </div>
           <button class="icon-button" type="button" data-action="close-vault">×</button>
         </div>
-        <div class="vault-form">
-          <input class="input" name="vaultPassword" placeholder="设置主密码，至少 8 位" type="password" required minlength="8" />
-          <input class="input" name="confirmPassword" placeholder="确认主密码" type="password" required minlength="8" />
-        </div>
+        ${savedUntil ? `
+          <div class="vault-status">
+            <span class="vault-status-text">${icons.shield()} 已设置，有效期至 ${savedUntil}</span>
+            <button class="ghost-button" type="button" data-action="clear-vault">${icons.trash()} 清除</button>
+          </div>
+        ` : `
+          <div class="vault-form">
+            <input class="input" name="vaultPassword" placeholder="设置主密码，至少 8 位" type="password" required minlength="8" />
+            <input class="input" name="confirmPassword" placeholder="确认主密码" type="password" required minlength="8" />
+            <select class="input" name="expireTime">
+              <option value="3600000">1小时后过期</option>
+              <option value="86400000">1天后过期</option>
+              <option value="604800000">7天后过期</option>
+              <option value="2592000000">30天后过期</option>
+              <option value="-1">永不过期</option>
+            </select>
+          </div>
+        `}
         <div class="modal-actions">
           <span class="status">主密码仅保存在浏览器本地</span>
-          <button type="submit" class="primary-button">${icons.check()} 确认设置</button>
+          ${savedUntil ? `
+            <button class="outline-button" type="button" data-action="close-vault">关闭</button>
+          ` : `
+            <button type="submit" class="primary-button">${icons.check()} 确认设置</button>
+          `}
         </div>
       </form>
     </div>
@@ -344,18 +418,9 @@ function studioTitleTemplate() {
   return `
     <div class="panel-title-row studio-title-row">
       <div class="studio-summary">
-        <div>
-          <strong>${state.items.length}</strong>
-          <span>全部收藏</span>
-        </div>
-        <div>
-          <strong>${state.items.filter((item) => item.favorite).length}</strong>
-          <span>已标星</span>
-        </div>
-        <div>
-          <strong>${new Set(state.items.flatMap((item) => item.tags)).size}</strong>
-          <span>标签</span>
-        </div>
+        <strong>${state.items.length}</strong> 条收藏
+        <strong>${state.items.filter((item) => item.favorite).length}</strong> 已标星
+        <strong>${new Set(state.items.flatMap((item) => item.tags)).size}</strong> 标签
       </div>
     </div>
   `;
