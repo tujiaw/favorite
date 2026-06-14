@@ -45,7 +45,7 @@ https://your-app-domain.vercel.app/
 ```
 
 应用登录时会使用当前页面无 query 的 URL 作为 `redirectTo`，因此本地和 Vercel 部署会自动回到当前站点入口。
-5. 在 Vercel 配置同名环境变量 `SUPABASE_URL` 和 `SUPABASE_PUBLISHABLE_KEY` 后部署。本地开发由 `scripts/dev-server.mjs` 生成 `/config.js`，Vercel 由 `api/config.js` 生成 `/config.js`。
+5. 在 Vercel 配置同名环境变量 `SUPABASE_URL` 和 `SUPABASE_PUBLISHABLE_KEY` 后部署。本地开发由 `scripts/dev-server.mjs` 生成 `/config.js`，Vercel 构建时会生成 `dist/config.js`。
 
 Supabase 未配置时，OAuth 按钮会进入本地演示模式；配置后会调用真实 GitHub OAuth。
 
