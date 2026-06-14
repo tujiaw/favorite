@@ -1,0 +1,15 @@
+{
+  "routes": [
+    {
+      "src": "/config.js",
+      "dest": "/api/config.js"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}

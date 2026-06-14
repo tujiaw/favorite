@@ -1,0 +1,16 @@
+{
+  "name": "个人收藏中心",
+  "short_name": "收藏中心",
+  "description": "快速保存链接、文本、图片、代码和账号信息。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

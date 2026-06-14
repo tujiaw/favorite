@@ -1,0 +1,25 @@
+{
+  "name": "favorite",
+  "version": "1.0.0",
+  "description": "Personal favorite center for links, text, images, snippets, and encrypted account secrets.",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "build": "node scripts/verify-static.mjs",
+    "start": "node scripts/dev-server.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/tujiaw/favorite.git"
+  },
+  "keywords": [
+    "favorites",
+    "pwa",
+    "supabase",
+    "vault"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {}
+}
