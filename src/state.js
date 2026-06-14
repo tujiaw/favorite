@@ -23,7 +23,10 @@ export const state = {
   createModal: false,
   modalTab: "favorite",
   vaultModal: false,
-  deleteConfirm: false
+  deleteConfirm: false,
+  sortMenu: false,
+  sortMode: "updated_at",
+  sortDesc: true
 };
 
 export function setSessionUser(user) {

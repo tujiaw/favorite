@@ -102,9 +102,22 @@ function render() {
             <div class="conversation-head">
               <h2>收藏列表</h2>
               <div class="conversation-tools">
-                <button class="icon-button" title="筛选">${icons.sliders()}</button>
-                <button class="icon-button" title="更多">${icons.more()}</button>
+                <button class="icon-button ${state.favoriteOnly ? "active" : ""}" title="只显示已标星" data-action="toggle-favorite-filter">${icons.sliders()}</button>
+                <button class="icon-button" title="排序" data-action="toggle-sort-menu">${icons.more()}</button>
               </div>
+              ${state.sortMenu ? `
+                <div class="sort-menu">
+                  <button class="sort-option ${state.sortMode === "updated_at" ? "active" : ""}" data-sort="updated_at">
+                    ${state.sortMode === "updated_at" && state.sortDesc ? "↓" : "↑"} 按时间
+                  </button>
+                  <button class="sort-option ${state.sortMode === "use_count" ? "active" : ""}" data-sort="use_count">
+                    ${state.sortMode === "use_count" && state.sortDesc ? "↓" : "↑"} 按使用次数
+                  </button>
+                  <button class="sort-option ${state.sortMode === "title" ? "active" : ""}" data-sort="title">
+                    ${state.sortMode === "title" && state.sortDesc ? "↓" : "↑"} 按名称
+                  </button>
+                </div>
+              ` : ""}
             </div>
             <div class="conversation-body">
               <div class="item-list">
@@ -115,11 +128,11 @@ function render() {
                 }
               </div>
             </div>
-            <p class="notebook-note">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
           </div>
         </section>
         ${detailTemplate(selected)}
       </div>
+      <p class="notebook-note">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
       ${state.createModal ? createModalTemplate() : ""}
       ${state.vaultModal ? vaultModalTemplate() : ""}
       ${state.deleteConfirm ? deleteConfirmTemplate() : ""}
@@ -178,6 +191,27 @@ function bindWorkspace() {
   document.querySelectorAll("[data-type-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       state.typeFilter = button.dataset.typeFilter;
+      render();
+    });
+  });
+  document.querySelector("[data-action='toggle-favorite-filter']")?.addEventListener("click", () => {
+    state.favoriteOnly = !state.favoriteOnly;
+    render();
+  });
+  document.querySelector("[data-action='toggle-sort-menu']")?.addEventListener("click", () => {
+    state.sortMenu = !state.sortMenu;
+    render();
+  });
+  document.querySelectorAll("[data-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const sort = button.dataset.sort;
+      if (state.sortMode === sort) {
+        state.sortDesc = !state.sortDesc;
+      } else {
+        state.sortMode = sort;
+        state.sortDesc = true;
+      }
+      state.sortMenu = false;
       render();
     });
   });
@@ -570,7 +604,17 @@ async function fetchSiteInfo() {
   }
 }
 
-function togglePasswordVisibility() {
+async function togglePasswordVisibility() {
+  const item = selectedItem();
+  if (!item) return;
+  // 如果还没有解密且 vault 密码已设置，尝试解密
+  if (!state.revealedSecret && item.encrypted_secret && state.vaultPassword) {
+    try {
+      state.revealedSecret = await decryptSecret(state.vaultPassword, item.encrypted_secret);
+    } catch {
+      console.error("解密失败");
+    }
+  }
   state.passwordVisible = !state.passwordVisible;
   render();
 }
@@ -608,7 +652,7 @@ async function copyPassword() {
 
 function filteredItems() {
   const query = state.query.trim().toLowerCase();
-  return state.items.filter((item) => {
+  let filtered = state.items.filter((item) => {
     const matchesType = state.typeFilter === "all" || item.type === state.typeFilter;
     const matchesFavorite = !state.favoriteOnly || item.favorite;
     const matchesTag = !state.tagFilter || item.tags.includes(state.tagFilter);
@@ -617,6 +661,34 @@ function filteredItems() {
       .toLowerCase();
     return matchesType && matchesFavorite && matchesTag && (!query || haystack.includes(query));
   });
+
+  // 排序
+  filtered.sort((a, b) => {
+    let aVal, bVal;
+    switch (state.sortMode) {
+      case "updated_at":
+        aVal = new Date(a.updated_at || a.created_at).getTime();
+        bVal = new Date(b.updated_at || b.created_at).getTime();
+        break;
+      case "use_count":
+        aVal = a.use_count || 0;
+        bVal = b.use_count || 0;
+        break;
+      case "title":
+        aVal = a.title.toLowerCase();
+        bVal = b.title.toLowerCase();
+        break;
+      default:
+        return 0;
+    }
+    if (state.sortDesc) {
+      return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+    } else {
+      return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+    }
+  });
+
+  return filtered;
 }
 
 function selectedItem() {

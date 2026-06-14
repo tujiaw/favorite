@@ -211,56 +211,18 @@ export function detailTemplate(item) {
     <aside class="detail-panel">
       ${studioTitleTemplate()}
       <div class="detail-scroll">
-        <div class="detail-header">
-          <div class="detail-title-wrap">
-            <span class="type-badge">${TYPES[item.type].icon()}</span>
-            <div class="min-w-0">
-              <p class="detail-type">${TYPES[item.type].label}</p>
-              <h2 class="detail-title">${escapeHtml(item.title)}</h2>
-            </div>
-          </div>
-          <button class="icon-button" title="收藏" data-action="toggle-favorite">
-            ${icons.heart(item.favorite)}
-          </button>
-        </div>
-        <label class="field">
-          <span>标题</span>
-          <input class="input" data-edit="title" value="${escapeAttr(item.title)}" />
-        </label>
-        <label class="field">
-          <span>类型</span>
-          <select class="select" data-edit="type">
-            ${Object.keys(TYPES)
-              .filter((type) => type !== "all" && (type !== "account" || item.type === "account"))
-              .map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${TYPES[type].label}</option>`)
-              .join("")}
-          </select>
-        </label>
-        ${
-          item.type === "image"
-            ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
-            : `<label class="field">
-                <span>内容</span>
-                <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
-              </label>`
-        }
-        <label class="field">
-          <span>标签</span>
-          <input class="input" data-edit="tags" placeholder="逗号分隔，例如：工作, 常用" value="${escapeAttr(item.tags.join(", "))}" />
-        </label>
-        <label class="field">
-          <span>备注</span>
-          <textarea class="textarea" data-edit="note">${escapeHtml(item.note)}</textarea>
-        </label>
         ${
           item.type === "account"
             ? `
               <section class="vault-box">
-                <div class="vault-title">${icons.key()} 账号信息</div>
+                <div class="vault-title">
+                  ${icons.key()} ${escapeHtml(item.title)}
+                  <button class="icon-button" style="margin-left: auto;" data-action="toggle-favorite">${icons.heart(item.favorite)}</button>
+                </div>
                 <div class="account-fields">
                   <div class="account-field">
                     <label class="field-label">用户名</label>
-                    <div class="field-value">${escapeHtml(item.content)}</div>
+                    <input class="field-value-input" data-edit="content" value="${escapeAttr(item.content)}" />
                   </div>
                   ${
                     item.encrypted_secret
@@ -277,23 +239,57 @@ export function detailTemplate(item) {
                       `
                       : ""
                   }
-                  ${
-                    item.source_url
-                      ? `
-                        <div class="account-field">
-                          <label class="field-label">网站</label>
-                          <div class="field-value">
-                            <a href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(item.source_url)}</a>
-                          </div>
-                        </div>
-                      `
-                      : ""
-                  }
+                  <div class="account-field">
+                    <label class="field-label">网站</label>
+                    <input class="field-value-input" data-edit="source_url" value="${escapeAttr(item.source_url || "")}" placeholder="https://" />
+                  </div>
                 </div>
               </section>
             `
-            : ""
+            : `
+              <div class="detail-header">
+                <div class="detail-title-wrap">
+                  <span class="type-badge">${TYPES[item.type].icon()}</span>
+                  <div class="min-w-0">
+                    <p class="detail-type">${TYPES[item.type].label}</p>
+                    <h2 class="detail-title">${escapeHtml(item.title)}</h2>
+                  </div>
+                </div>
+                <button class="icon-button" title="收藏" data-action="toggle-favorite">
+                  ${icons.heart(item.favorite)}
+                </button>
+              </div>
+              <label class="field">
+                <span>标题</span>
+                <input class="input" data-edit="title" value="${escapeAttr(item.title)}" />
+              </label>
+              <label class="field">
+                <span>类型</span>
+                <select class="select" data-edit="type">
+                  ${Object.keys(TYPES)
+                    .filter((type) => type !== "all" && type !== "account")
+                    .map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${TYPES[type].label}</option>`)
+                    .join("")}
+                </select>
+              </label>
+              ${
+                item.type === "image"
+                  ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
+                  : `<label class="field">
+                      <span>内容</span>
+                      <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
+                    </label>`
+              }
+            `
         }
+        <label class="field">
+          <span>标签</span>
+          <input class="input" data-edit="tags" placeholder="逗号分隔，例如：工作, 常用" value="${escapeAttr(item.tags.join(", "))}" />
+        </label>
+        <label class="field">
+          <span>备注</span>
+          <textarea class="textarea" data-edit="note">${escapeHtml(item.note)}</textarea>
+        </label>
         <div class="two-cols">
           <button class="outline-button" data-action="copy-content">${icons.copy()} 复制</button>
           ${
@@ -418,9 +414,9 @@ function studioTitleTemplate() {
   return `
     <div class="panel-title-row studio-title-row">
       <div class="studio-summary">
-        <strong>${state.items.length}</strong> 条收藏
-        <strong>${state.items.filter((item) => item.favorite).length}</strong> 已标星
-        <strong>${new Set(state.items.flatMap((item) => item.tags)).size}</strong> 标签
+        <span><strong>${state.items.length}</strong> 条收藏</span>
+        <span><strong>${state.items.filter((item) => item.favorite).length}</strong> 已标星</span>
+        <span><strong>${new Set(state.items.flatMap((item) => item.tags)).size}</strong> 标签</span>
       </div>
     </div>
   `;
