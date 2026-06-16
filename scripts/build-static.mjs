@@ -7,9 +7,11 @@ const dist = join(root, "dist");
 const files = [
   "index.html",
   "app.js",
+  "sw.js",
   "styles.css",
   "manifest.webmanifest",
-  "icon.svg"
+  "icon.svg",
+  "icon-maskable.svg"
 ];
 
 rmSync(dist, { force: true, recursive: true });

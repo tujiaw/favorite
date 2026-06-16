@@ -26,7 +26,12 @@ export const state = {
   deleteConfirm: false,
   sortMenu: false,
   sortMode: "updated_at",
-  sortDesc: true
+  sortDesc: true,
+  settingsModal: false,
+  llmConfig: { baseUrl: "", apiKey: "", model: "" },
+  prompts: [],
+  aiLoading: false,
+  installPromptEvent: null
 };
 
 export function setSessionUser(user) {

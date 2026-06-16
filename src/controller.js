@@ -3,12 +3,14 @@ import { decryptSecret, encryptSecret } from "./crypto.js";
 import { createBaseItem, deleteFavorite, listFavorites, saveFavorite, uploadImage } from "./data.js";
 import { icons } from "./icons.js";
 import { state, localUser, setSessionUser } from "./state.js";
+import { loadLLMConfig, loadPrompts, runPrompt, saveLLMConfig, savePrompts } from "./ai.js";
 import {
   createModalTemplate,
   deleteConfirmTemplate,
   detailTemplate,
   itemCardTemplate,
   loginTemplate,
+  settingsModalTemplate,
   sidebarTemplate,
   topbarTemplate,
   vaultModalTemplate
@@ -25,6 +27,9 @@ export function startApp(rootElement) {
 async function boot() {
   // 加载保险箱密码
   loadVaultPassword();
+  state.llmConfig = loadLLMConfig();
+  state.prompts = loadPrompts();
+  captureInstallPrompt();
   render();
   if (new URLSearchParams(window.location.search).get("demo") === "1") {
     state.supabaseReady = false;
@@ -135,6 +140,7 @@ function render() {
       <p class="notebook-note">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
       ${state.createModal ? createModalTemplate() : ""}
       ${state.vaultModal ? vaultModalTemplate() : ""}
+      ${state.settingsModal ? settingsModalTemplate() : ""}
       ${state.deleteConfirm ? deleteConfirmTemplate() : ""}
     </main>
   `;
@@ -330,6 +336,29 @@ function bindModal() {
   document.querySelector("[data-action='fetch-site']")?.addEventListener("click", fetchSiteInfo);
   document.querySelector("[data-form='account']")?.addEventListener("submit", createAccount);
   document.querySelector("[data-form='vault']")?.addEventListener("submit", setVaultPassword);
+  document.querySelectorAll("[data-action='open-settings']").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.settingsModal = true;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-action='close-settings']").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.settingsModal = false;
+      render();
+    });
+  });
+  document.querySelectorAll("[data-action='add-prompt']").forEach((button) => {
+    button.addEventListener("click", addPromptRow);
+  });
+  document.querySelectorAll("[data-action='delete-prompt']").forEach((button) => {
+    button.addEventListener("click", deletePromptRow);
+  });
+  document.querySelector("[data-form='settings']")?.addEventListener("submit", saveSettings);
+  document.querySelectorAll("[data-action='run-ai']").forEach((button) => {
+    button.addEventListener("click", () => runAI(button.dataset.promptId));
+  });
+  document.querySelector("[data-action='prompt-install']")?.addEventListener("click", promptInstall);
 }
 
 async function signIn(provider) {
@@ -694,4 +723,102 @@ function filteredItems() {
 function selectedItem() {
   const filtered = filteredItems();
   return filtered.find((item) => item.id === state.selectedId) || filtered[0] || null;
+}
+
+function addPromptRow() {
+  state.prompts.push({
+    id: `prompt-${Date.now()}`,
+    name: "新提示词",
+    content: ""
+  });
+  render();
+}
+
+function deletePromptRow(event) {
+  const index = Number(event.currentTarget.dataset.promptIndex);
+  if (Number.isNaN(index)) return;
+  state.prompts.splice(index, 1);
+  if (state.prompts.length === 0) {
+    state.status = "至少保留一个提示词";
+  }
+  render();
+}
+
+function saveSettings(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const baseUrl = String(form.baseUrl?.value || "").trim();
+  const apiKey = String(form.apiKey?.value || "").trim();
+  const model = String(form.model?.value || "").trim();
+  const prompts = Array.from(state.prompts).map((p, index) => {
+    const id = p.id;
+    const nameEl = form.querySelector(`[data-prompt-name="${cssEscape(id)}"]`);
+    const contentEl = form.querySelector(`[data-prompt-content="${cssEscape(id)}"]`);
+    return {
+      id,
+      name: String(nameEl?.value || "").trim() || "未命名",
+      content: String(contentEl?.value || "").trim()
+    };
+  });
+  state.llmConfig = { baseUrl, apiKey, model };
+  state.prompts = prompts;
+  saveLLMConfig(state.llmConfig);
+  savePrompts(state.prompts);
+  state.settingsModal = false;
+  state.status = "设置已保存";
+  render();
+}
+
+function cssEscape(value) {
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+function captureInstallPrompt() {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.installPromptEvent = event;
+    if (state.booted) render();
+  });
+  window.addEventListener("appinstalled", () => {
+    state.installPromptEvent = null;
+    if (state.booted) render();
+  });
+}
+
+async function promptInstall() {
+  if (!state.installPromptEvent) return;
+  state.installPromptEvent.prompt();
+  const { outcome } = await state.installPromptEvent.userChoice;
+  state.installPromptEvent = null;
+  if (outcome !== "accepted") {
+    state.status = "已取消安装";
+  }
+  render();
+}
+
+async function runAI(promptId) {
+  const item = selectedItem();
+  if (!item || item.type === "image" || item.type === "account") return;
+  const prompt = state.prompts.find((p) => p.id === promptId);
+  if (!prompt) return;
+  if (!state.llmConfig.baseUrl || !state.llmConfig.apiKey || !state.llmConfig.model) {
+    state.status = "请先在设置中配置大模型";
+    state.settingsModal = true;
+    render();
+    return;
+  }
+  state.aiLoading = true;
+  state.status = `正在执行：${prompt.name}`;
+  render();
+  try {
+    const result = await runPrompt(prompt.content, item.content, state.llmConfig);
+    await updateSelected({ content: result, preview: makePreview(result) });
+    state.status = `已应用：${prompt.name}`;
+  } catch (error) {
+    console.error("AI 处理失败:", error);
+    state.status = `AI 处理失败：${error.message}`;
+  } finally {
+    state.aiLoading = false;
+    render();
+  }
 }

@@ -1,16 +1,38 @@
 {
+  "id": "/?source=pwa",
   "name": "个人收藏中心",
   "short_name": "收藏中心",
-  "description": "快速保存链接、文本、图片、代码和账号信息。",
-  "start_url": "/",
+  "description": "快速保存链接、文本、图片、代码和账号信息的个人收藏中心。",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
+  "categories": ["productivity", "utilities"],
+  "lang": "zh-CN",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "创建收藏",
+      "short_name": "创建",
+      "description": "快速创建一条新收藏",
+      "url": "/?source=pwa&action=create"
     }
   ]
 }

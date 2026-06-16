@@ -10,11 +10,13 @@ const liveReloadClients = new Set();
 const watchedFiles = [
   "index.html",
   "app.js",
+  "sw.js",
   "src",
   "styles.css",
   ".env.local",
   "manifest.webmanifest",
-  "icon.svg"
+  "icon.svg",
+  "icon-maskable.svg"
 ];
 
 const types = {

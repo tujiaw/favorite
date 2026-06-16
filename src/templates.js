@@ -38,9 +38,14 @@ export function topbarTemplate() {
         </div>
         <div class="topbar-actions">
           <button class="create-notebook" data-action="open-create">${icons.plus()} 创建</button>
+          ${
+            state.installPromptEvent
+              ? `<button class="install-button" data-action="prompt-install" title="安装到本地">${icons.grid()} 安装</button>`
+              : ""
+          }
           <button class="icon-button ${hasVault ? "vault-active" : ""}" title="保险箱" data-action="open-vault">${icons.shield()}</button>
           <button class="icon-button" title="分享">${icons.share()}</button>
-          <button class="icon-button" title="设置">${icons.settings()}</button>
+          <button class="icon-button" title="设置" data-action="open-settings">${icons.settings()}</button>
           <button class="icon-button" title="应用">${icons.grid()}</button>
           <span class="avatar" title="${escapeAttr(subtitle)}">悟</span>
           <span class="topbar-chip">${state.items.length} 条</span>
@@ -259,26 +264,41 @@ export function detailTemplate(item) {
                   ${icons.heart(item.favorite)}
                 </button>
               </div>
-              <label class="field">
-                <span>标题</span>
-                <input class="input" data-edit="title" value="${escapeAttr(item.title)}" />
-              </label>
-              <label class="field">
-                <span>类型</span>
-                <select class="select" data-edit="type">
-                  ${Object.keys(TYPES)
-                    .filter((type) => type !== "all" && type !== "account")
-                    .map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${TYPES[type].label}</option>`)
-                    .join("")}
-                </select>
-              </label>
+              <div class="detail-row">
+                <label class="field">
+                  <span>标题</span>
+                  <input class="input" data-edit="title" value="${escapeAttr(item.title)}" />
+                </label>
+                <label class="field">
+                  <span>类型</span>
+                  <select class="select" data-edit="type">
+                    ${Object.keys(TYPES)
+                      .filter((type) => type !== "all" && type !== "account")
+                      .map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${TYPES[type].label}</option>`)
+                      .join("")}
+                  </select>
+                </label>
+              </div>
               ${
                 item.type === "image"
                   ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
-                  : `<label class="field">
-                      <span>内容</span>
+                  : `<div class="field-content">
+                      <div class="field-content-head">
+                        <span>内容</span>
+                        <div class="ai-tools">
+                          ${state.prompts.map((p) => `
+                            <button
+                              class="ai-button"
+                              data-action="run-ai"
+                              data-prompt-id="${escapeAttr(p.id)}"
+                              title="${escapeAttr(p.name)}"
+                              ${state.aiLoading ? "disabled" : ""}
+                            >${icons.sparkles()} ${escapeHtml(p.name)}${state.aiLoading ? "…" : ""}</button>
+                          `).join("")}
+                        </div>
+                      </div>
                       <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
-                    </label>`
+                    </div>`
               }
             `
         }
@@ -290,17 +310,74 @@ export function detailTemplate(item) {
           <span>备注</span>
           <textarea class="textarea" data-edit="note">${escapeHtml(item.note)}</textarea>
         </label>
-        <div class="two-cols">
+        <div class="detail-actions">
           <button class="outline-button" data-action="copy-content">${icons.copy()} 复制</button>
           ${
             item.source_url
               ? `<a class="outline-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
               : `<button class="outline-button" disabled>${icons.eyeOff()} 无链接</button>`
           }
-          <button class="danger-button span-2" data-action="delete-selected">${icons.trash()} 删除</button>
+          <button class="danger-button" data-action="delete-selected">${icons.trash()} 删除</button>
         </div>
       </div>
     </aside>
+  `;
+}
+
+export function settingsModalTemplate() {
+  const { baseUrl, apiKey, model } = state.llmConfig;
+  return `
+    <div class="modal-backdrop">
+      <form class="modal-card settings-modal" data-form="settings">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">设置</h2>
+            <p class="modal-subtitle">配置大模型与提示词，所有信息仅保存在浏览器本地</p>
+          </div>
+          <button class="icon-button" type="button" data-action="close-settings">×</button>
+        </div>
+        <div class="settings-section">
+          <h3 class="settings-section-title">大模型配置</h3>
+          <div class="settings-grid">
+            <label class="settings-field span-2">
+              <span>Base URL</span>
+              <input class="input" name="baseUrl" placeholder="https://api.openai.com/v1" value="${escapeAttr(baseUrl)}" />
+            </label>
+            <label class="settings-field">
+              <span>模型</span>
+              <input class="input" name="model" placeholder="gpt-4o-mini" value="${escapeAttr(model)}" />
+            </label>
+            <label class="settings-field span-2">
+              <span>API Key</span>
+              <input class="input" name="apiKey" type="password" placeholder="sk-..." value="${escapeAttr(apiKey)}" />
+            </label>
+          </div>
+          <p class="settings-hint">兼容 OpenAI 接口格式，自动拼接 <code>/chat/completions</code>。</p>
+        </div>
+        <div class="settings-section">
+          <div class="settings-section-head">
+            <h3 class="settings-section-title">提示词</h3>
+            <button class="outline-button compact-button" type="button" data-action="add-prompt">${icons.plus()} 新增</button>
+          </div>
+          <div class="prompt-list">
+            ${state.prompts.map((p, index) => `
+              <div class="prompt-item" data-prompt-index="${index}">
+                <div class="prompt-item-head">
+                  <input class="input" data-prompt-name="${escapeAttr(p.id)}" value="${escapeAttr(p.name)}" placeholder="提示词名称" />
+                  <button class="icon-button" type="button" data-action="delete-prompt" data-prompt-index="${index}" title="删除">${icons.trash()}</button>
+                </div>
+                <textarea class="textarea" data-prompt-content="${escapeAttr(p.id)}" placeholder="提示词内容，将拼接到正文之前">${escapeHtml(p.content)}</textarea>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        <div class="modal-actions">
+          <span class="status">${escapeHtml(state.status)}</span>
+          <button type="button" class="ghost-button" data-action="close-settings">取消</button>
+          <button type="submit" class="primary-button">${icons.check()} 保存</button>
+        </div>
+      </form>
+    </div>
   `;
 }
 

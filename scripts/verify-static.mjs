@@ -15,6 +15,8 @@ const requiredFiles = [
   "config.js",
   "manifest.webmanifest",
   "icon.svg",
+  "icon-maskable.svg",
+  "sw.js",
   "supabase/schema.sql",
   "docs/design/personal-favorite-center.md"
 ];
