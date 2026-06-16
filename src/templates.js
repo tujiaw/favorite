@@ -24,7 +24,6 @@ export function loginTemplate() {
 
 export function topbarTemplate() {
   const subtitle = state.supabaseReady ? escapeHtml(state.user.email) : "本地演示模式";
-  const favoriteCount = state.items.filter((item) => item.favorite).length;
   const hasVault = state.vaultPassword && state.vaultPassword.length >= 8;
   return `
     <header class="topbar">
@@ -36,20 +35,24 @@ export function topbarTemplate() {
             <p class="brand-subtitle">${subtitle}</p>
           </div>
         </div>
+        <label class="global-search">
+          ${icons.search()}
+          <input data-field="query" placeholder="搜索收藏内容、标签、URL" value="${escapeAttr(state.query)}" />
+          <kbd>⌘ K</kbd>
+        </label>
         <div class="topbar-actions">
-          <button class="create-notebook" data-action="open-create">${icons.plus()} 创建</button>
+          <button class="create-notebook" data-action="open-create">${icons.plus()} 收藏 <span class="button-divider"></span>${icons.chevronDown()}</button>
           ${
             state.installPromptEvent
               ? `<button class="install-button" data-action="prompt-install" title="安装到本地">${icons.grid()} 安装</button>`
               : ""
           }
+          <button class="ai-top-button" data-action="open-settings">${icons.sparkles()} AI 智能整理</button>
+          <button class="icon-button" title="刷新同步" data-action="refresh-items">${icons.refresh()}</button>
           <button class="icon-button ${hasVault ? "vault-active" : ""}" title="保险箱" data-action="open-vault">${icons.shield()}</button>
-          <button class="icon-button" title="分享">${icons.share()}</button>
-          <button class="icon-button" title="设置" data-action="open-settings">${icons.settings()}</button>
-          <button class="icon-button" title="应用">${icons.grid()}</button>
-          <span class="avatar" title="${escapeAttr(subtitle)}">悟</span>
-          <span class="topbar-chip">${state.items.length} 条</span>
-          <span class="topbar-chip">${favoriteCount} 收藏</span>
+          <button class="icon-button" title="分享当前收藏" data-action="share-selected">${icons.share()}</button>
+          <button class="icon-button" title="快捷操作" data-action="open-app-menu">${icons.grid()}</button>
+          <span class="avatar" title="${escapeAttr(subtitle)}">${escapeHtml((state.user.name || state.user.email || "用").slice(0, 1))}</span>
         </div>
         <button class="icon-button" title="退出登录" data-action="sign-out">${icons.logout()}</button>
       </div>
@@ -58,10 +61,17 @@ export function topbarTemplate() {
 }
 
 export function sidebarTemplate() {
+  const counts = typeCounts();
+  const activeItems = state.items.filter((item) => !isTrashed(item));
+  const favoriteCount = activeItems.filter((item) => item.favorite).length;
+  const recentCount = activeItems.filter((item) => item.last_used_at).length;
+  const readLaterCount = activeItems.filter((item) => isReadLater(item)).length;
+  const trashCount = state.items.filter((item) => isTrashed(item)).length;
+  const tags = tagCounts();
   if (state.sidebarCollapsed) {
     return `
       <aside class="sidebar sidebar-collapsed">
-        <section class="panel sources-panel collapsed-panel">
+        <section class="sources-panel collapsed-panel">
           <button class="icon-button compact" title="展开分类" data-action="toggle-sidebar">${icons.panel()}</button>
           <button class="icon-button compact" title="搜索" data-action="toggle-sidebar">${icons.search()}</button>
           <button class="icon-button compact" title="分类" data-action="toggle-sidebar">${icons.sparkles()}</button>
@@ -72,26 +82,44 @@ export function sidebarTemplate() {
 
   return `
     <aside class="sidebar">
-      <section class="panel sources-panel">
-        <div class="panel-title-row">
-          <h2>分类</h2>
-          <button class="icon-button compact" title="折叠左侧栏" data-action="toggle-sidebar">${icons.panel()}</button>
+      <section class="sources-panel">
+        <div class="nav-list">
+          <button class="nav-button overview-button ${!state.specialFilter && state.typeFilter === "all" && !state.favoriteOnly && !state.tagFilter ? "active" : ""}" data-action="show-overview">${icons.home()}<span>概览</span></button>
         </div>
-        <div class="search-wrap">
-          ${icons.search()}
-          <input class="input search-input" data-field="query" placeholder="搜索收藏" value="${escapeAttr(state.query)}" />
+        <div class="section-label">收藏管理</div>
+        <div class="nav-list">
+          <button class="nav-button ${state.typeFilter === "all" && !state.favoriteOnly && !state.specialFilter ? "active" : ""}" data-type-filter="all">${icons.sparkles()}<span>全部收藏</span><strong>${activeItems.length}</strong></button>
+          <button class="nav-button ${state.specialFilter === "recent" ? "active" : ""}" data-action="recent-filter">${icons.clock()}<span>最近使用</span><strong>${recentCount}</strong></button>
+          <button class="nav-button ${state.favoriteOnly ? "active" : ""}" data-action="toggle-favorite-filter">${icons.star()}<span>星标收藏</span><strong>${favoriteCount}</strong></button>
+          <button class="nav-button ${state.specialFilter === "readLater" ? "active" : ""}" data-action="show-read-later">${icons.bookmark()}<span>稍后阅读</span><strong>${readLaterCount}</strong></button>
+          <button class="nav-button ${state.specialFilter === "trash" ? "active" : ""}" data-action="show-trash">${icons.trash()}<span>回收站</span><strong>${trashCount}</strong></button>
         </div>
-        <div class="section-label">分类列表</div>
+        <div class="section-label">分类</div>
         <div class="nav-list">
           ${Object.entries(TYPES)
-            .map(
-              ([type, meta]) => `
-                <button class="nav-button ${state.typeFilter === type ? "active" : ""}" data-type-filter="${type}">
-                  ${meta.icon()} ${meta.label}
-                </button>
-              `
-            )
+            .filter(([type]) => type !== "all")
+            .slice(0, 5)
+            .map(([type, meta]) => `
+              <button class="nav-button ${state.typeFilter === type ? "active" : ""}" data-type-filter="${type}">
+                ${type === "link" ? icons.folder() : meta.icon()}<span>${categoryLabel(type)}</span><strong>${counts[type] || 0}</strong>
+              </button>
+            `)
             .join("")}
+          <button class="nav-button nav-action" data-action="new-category">${icons.plus()}<span>新建分类</span></button>
+        </div>
+        <div class="section-label">标签</div>
+        <div class="tag-cloud">
+          ${
+            tags.length
+              ? tags.slice(0, 8).map(([tag, count]) => `<button class="tag-chip ${state.tagFilter === tag ? "active" : ""}" data-tag-filter="${escapeAttr(tag)}">${escapeHtml(tag)} <strong>${count}</strong></button>`).join("")
+              : `<span class="muted-chip">暂无标签</span>`
+          }
+          ${state.tagFilter ? `<button class="tag-chip clear" data-tag-filter="">清除</button>` : ""}
+        </div>
+        <div class="storage-card">
+          <div><span>存储空间</span><strong>1.2GB / 5GB</strong></div>
+          <div class="storage-meter"><i></i></div>
+          <button class="upgrade-button" data-action="show-storage-tip">升级空间</button>
         </div>
       </section>
     </aside>
@@ -177,23 +205,31 @@ export function createModalTemplate() {
 }
 
 export function itemCardTemplate(item, selected) {
+  const date = new Date(item.last_used_at || item.created_at).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
   return `
     <button class="item-card ${selected ? "selected" : ""}" data-select="${item.id}">
       <div class="item-main">
         <div class="item-title-row">
-          <span class="type-badge">${TYPES[item.type].icon()}</span>
+          <span class="type-badge type-${escapeAttr(item.type)}">${TYPES[item.type].icon()}</span>
           <div class="min-w-0">
-            <h2 class="item-title">${escapeHtml(item.title)}</h2>
+            <h2 class="item-title">${escapeHtml(item.title)} <span class="inline-type">${TYPES[item.type].label}</span></h2>
             <p class="item-preview">${escapeHtml(item.preview || item.content)}</p>
           </div>
         </div>
         ${item.favorite ? `<span class="favorite-star">${icons.star(true)}</span>` : ""}
       </div>
       <div class="meta-row">
-        <span class="meta-pill">${TYPES[item.type].label}</span>
         ${item.domain ? `<span>${escapeHtml(item.domain)}</span>` : ""}
-        ${item.tags.map((tag) => `<span class="meta-tag">${escapeHtml(tag)}</span>`).join("")}
-        <span>${new Date(item.last_used_at || item.created_at).toLocaleString("zh-CN")}</span>
+        ${item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => `<span class="meta-tag">${escapeHtml(tag)}</span>`).join("")}
+        <span>${date}</span>
+        ${isReadLater(item) ? `<span class="meta-tag">稍后阅读</span>` : ""}
+        ${selected && item.type !== "image" && item.type !== "account" ? `<span class="ai-list-action" data-action="refresh-ai-summary">${icons.sparkles()} AI 总结</span>` : ""}
       </div>
     </button>
   `;
@@ -203,7 +239,6 @@ export function detailTemplate(item) {
   if (!item) {
     return `
       <aside class="detail-panel">
-        ${studioTitleTemplate()}
         <div class="detail-scroll">
           <button class="add-note-button" data-action="open-create">${icons.text()} 创建收藏</button>
           <div class="detail-empty">${icons.eye()}<p>选择一条收藏查看详情</p></div>
@@ -214,7 +249,6 @@ export function detailTemplate(item) {
 
   return `
     <aside class="detail-panel">
-      ${studioTitleTemplate()}
       <div class="detail-scroll">
         ${
           item.type === "account"
@@ -254,16 +288,40 @@ export function detailTemplate(item) {
             : `
               <div class="detail-header">
                 <div class="detail-title-wrap">
-                  <span class="type-badge">${TYPES[item.type].icon()}</span>
                   <div class="min-w-0">
-                    <p class="detail-type">${TYPES[item.type].label}</p>
-                    <h2 class="detail-title">${escapeHtml(item.title)}</h2>
+                    <h2 class="detail-title">${escapeHtml(item.title)} <span class="inline-type">${TYPES[item.type].label}</span></h2>
                   </div>
+                  <button class="favorite-toggle" title="星标收藏" data-action="toggle-favorite">${icons.star(item.favorite)}</button>
                 </div>
-                <button class="icon-button" title="收藏" data-action="toggle-favorite">
-                  ${icons.heart(item.favorite)}
-                </button>
               </div>
+              <div class="detail-toolbar">
+                <button class="toolbar-button" data-action="focus-editor">${icons.edit()} 编辑</button>
+                <button class="toolbar-button" data-action="copy-content">${icons.copy()} 复制</button>
+                <button class="toolbar-button" data-action="share-selected">${icons.share()} 分享</button>
+                <div class="more-wrap">
+                  <button class="toolbar-button" data-action="toggle-more-menu">${icons.more()} 更多</button>
+                  ${state.moreMenu ? `
+                    <div class="more-menu">
+                      <button data-action="toggle-read-later">${icons.bookmark()} ${isReadLater(item) ? "取消稍后阅读" : "加入稍后阅读"}</button>
+                      <button data-action="duplicate-selected">${icons.copy()} 复制为新收藏</button>
+                      <button data-action="export-selected">${icons.external()} 导出文本</button>
+                    </div>
+                  ` : ""}
+                </div>
+              </div>
+              <div class="detail-row detail-tags-row">
+                <label class="field tags-field">
+                  <span>标签</span>
+                  <div class="editable-tags">
+                    ${item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => `<span class="meta-pill">${escapeHtml(tag)}</span>`).join("")}
+                    <input data-edit="tags" placeholder="+" value="${escapeAttr(item.tags.filter((tag) => !isSystemTag(tag)).join(", "))}" />
+                  </div>
+                </label>
+              </div>
+              <label class="field note-field">
+                <span>备注</span>
+                <input class="input" data-edit="note" value="${escapeAttr(item.note || "")}" placeholder="添加备注" />
+              </label>
               <div class="detail-row">
                 <label class="field">
                   <span>标题</span>
@@ -282,19 +340,28 @@ export function detailTemplate(item) {
               ${
                 item.type === "image"
                   ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
-                  : `<div class="field-content">
-                      <div class="field-content-head">
-                        <span>内容</span>
-                        <div class="ai-tools">
-                          ${state.prompts.map((p) => `
-                            <button
-                              class="ai-button"
-                              data-action="run-ai"
-                              data-prompt-id="${escapeAttr(p.id)}"
-                              title="${escapeAttr(p.name)}"
-                              ${state.aiLoading ? "disabled" : ""}
-                            >${icons.sparkles()} ${escapeHtml(p.name)}${state.aiLoading ? "…" : ""}</button>
-                          `).join("")}
+                  : `<div class="editor-card">
+                      <div class="editor-toolbar">
+                        <button title="粗体" data-format="bold">${icons.bold()}</button>
+                        <button title="斜体" data-format="italic">${icons.italic()}</button>
+                        <button title="下划线" data-format="underline">${icons.underline()}</button>
+                        <button title="无序列表" data-format="list">${icons.list()}</button>
+                        <button title="代码块" data-format="code">${icons.code()}</button>
+                        <button title="链接" data-format="link">${icons.link()}</button>
+                        <button title="待办" data-format="task">${icons.check()}</button>
+                        <button title="表格" data-format="table">${icons.table()}</button>
+                        <div class="editor-ai-menu">
+                          <button class="ai-button">${icons.sparkles()} AI 智能处理 ${icons.chevronDown()}</button>
+                          <div class="ai-popover">
+                            ${state.prompts.map((p) => `
+                              <button
+                                data-action="run-ai"
+                                data-prompt-id="${escapeAttr(p.id)}"
+                                title="${escapeAttr(p.name)}"
+                                ${state.aiLoading ? "disabled" : ""}
+                              >${icons.sparkles()} ${escapeHtml(p.name)}${state.aiLoading ? "…" : ""}</button>
+                            `).join("")}
+                          </div>
                         </div>
                       </div>
                       <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
@@ -302,25 +369,35 @@ export function detailTemplate(item) {
               }
             `
         }
-        <label class="field">
-          <span>标签</span>
-          <input class="input" data-edit="tags" placeholder="逗号分隔，例如：工作, 常用" value="${escapeAttr(item.tags.join(", "))}" />
-        </label>
-        <label class="field">
-          <span>备注</span>
-          <textarea class="textarea" data-edit="note">${escapeHtml(item.note)}</textarea>
-        </label>
+        ${item.type !== "account" ? aiSummaryTemplate(item) : ""}
         <div class="detail-actions">
-          <button class="outline-button" data-action="copy-content">${icons.copy()} 复制</button>
           ${
             item.source_url
               ? `<a class="outline-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
               : `<button class="outline-button" disabled>${icons.eyeOff()} 无链接</button>`
           }
+          ${state.specialFilter === "trash" ? `<button class="outline-button" data-action="restore-selected">${icons.refresh()} 恢复</button>` : ""}
           <button class="danger-button" data-action="delete-selected">${icons.trash()} 删除</button>
         </div>
       </div>
     </aside>
+  `;
+}
+
+function aiSummaryTemplate(item) {
+  const summary = state.aiSummaryById[item.id] || summaryFromItem(item);
+  const text = state.aiSummaryExpanded ? summary : truncate(summary, 120);
+  return `
+    <section class="ai-summary-card">
+      <h3>${icons.sparkles()} AI 总结</h3>
+      <p>${escapeHtml(text)}</p>
+      <div>
+        <span>由 AI 生成，可能不完全准确</span>
+        <button class="ghost-button" data-action="copy-ai-summary">${icons.copy()} 复制</button>
+        <button class="ghost-button" data-action="toggle-ai-summary">${icons.list()} ${state.aiSummaryExpanded ? "收起" : "展开"}</button>
+        <button class="ghost-button" data-action="refresh-ai-summary">${icons.refresh()} 重新生成</button>
+      </div>
+    </section>
   `;
 }
 
@@ -508,4 +585,53 @@ function secretTemplate(secret) {
     ${secret.recoveryCodes ? `<pre class="secret-pre">${escapeHtml(secret.recoveryCodes)}</pre>` : ""}
     ${secret.privateNote ? `<p class="secret-pre">${escapeHtml(secret.privateNote)}</p>` : ""}
   `;
+}
+
+function typeCounts() {
+  return Object.keys(TYPES).reduce((acc, type) => {
+    acc[type] = state.items.filter((item) => item.type === type && !isTrashed(item)).length;
+    return acc;
+  }, {});
+}
+
+function tagCounts() {
+  const map = new Map();
+  state.items.forEach((item) => {
+    if (isTrashed(item)) return;
+    item.tags.filter((tag) => !isSystemTag(tag)).forEach((tag) => map.set(tag, (map.get(tag) || 0) + 1));
+  });
+  return Array.from(map.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-CN"));
+}
+
+function categoryLabel(type) {
+  const labels = {
+    link: "远程办公",
+    text: "学习资料",
+    image: "工作",
+    code: "工具",
+    json: "数据文档",
+    account: "账号保险箱"
+  };
+  return labels[type] || TYPES[type].label;
+}
+
+function summaryFromItem(item) {
+  const source = item.preview || item.note || item.content || item.title;
+  return source || "当前收藏内容已准备好进行 AI 整理。";
+}
+
+function truncate(value, size) {
+  return value.length > size ? `${value.slice(0, size)}...` : value;
+}
+
+function isSystemTag(tag) {
+  return tag === "__read_later" || tag === "__trash";
+}
+
+function isReadLater(item) {
+  return item.tags.includes("__read_later");
+}
+
+function isTrashed(item) {
+  return item.tags.includes("__trash");
 }

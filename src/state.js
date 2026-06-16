@@ -6,6 +6,8 @@ export const state = {
   typeFilter: "all",
   favoriteOnly: false,
   tagFilter: null,
+  specialFilter: null,
+  viewMode: "list",
   sidebarCollapsed: false,
   status: "准备收藏你的下一段资料",
   quickInput: "",
@@ -31,6 +33,9 @@ export const state = {
   llmConfig: { baseUrl: "", apiKey: "", model: "" },
   prompts: [],
   aiLoading: false,
+  aiSummaryById: {},
+  aiSummaryExpanded: false,
+  moreMenu: false,
   installPromptEvent: null
 };
 

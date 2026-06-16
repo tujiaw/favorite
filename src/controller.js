@@ -18,6 +18,9 @@ import {
 import { classifyContent, domainFromUrl, makePreview, titleFromContent, withTimeout } from "./utils.js";
 
 let app;
+const READ_LATER_TAG = "__read_later";
+const TRASH_TAG = "__trash";
+const SUMMARY_KEY = "favorite-ai-summaries";
 
 export function startApp(rootElement) {
   app = rootElement;
@@ -29,6 +32,7 @@ async function boot() {
   loadVaultPassword();
   state.llmConfig = loadLLMConfig();
   state.prompts = loadPrompts();
+  state.aiSummaryById = loadSummaries();
   captureInstallPrompt();
   render();
   if (new URLSearchParams(window.location.search).get("demo") === "1") {
@@ -96,6 +100,10 @@ function render() {
   const selected = selectedItem();
   const emptyText = state.query.trim()
     ? "没有匹配的收藏，试试换个关键词"
+    : state.specialFilter === "trash"
+    ? "回收站为空"
+    : state.specialFilter === "readLater"
+    ? "没有稍后阅读内容"
     : "还没有收藏，点击“创建”开始";
   app.innerHTML = `
     <main class="app-shell">
@@ -105,10 +113,11 @@ function render() {
         <section class="content">
           <div class="conversation-panel">
             <div class="conversation-head">
-              <h2>收藏列表</h2>
+              <h2>全部收藏 <span>${filtered.length}</span></h2>
               <div class="conversation-tools">
-                <button class="icon-button ${state.favoriteOnly ? "active" : ""}" title="只显示已标星" data-action="toggle-favorite-filter">${icons.sliders()}</button>
-                <button class="icon-button" title="排序" data-action="toggle-sort-menu">${icons.more()}</button>
+                <button class="sort-trigger" data-action="toggle-sort-menu">${sortLabel()} ${icons.chevronDown()}</button>
+                <button class="icon-button ${state.viewMode === "list" ? "active" : ""}" title="列表视图" data-view-mode="list">${icons.list()}</button>
+                <button class="icon-button ${state.viewMode === "grid" ? "active" : ""}" title="网格视图" data-view-mode="grid">${icons.grid()}</button>
               </div>
               ${state.sortMenu ? `
                 <div class="sort-menu">
@@ -125,7 +134,7 @@ function render() {
               ` : ""}
             </div>
             <div class="conversation-body">
-              <div class="item-list">
+              <div class="item-list ${state.viewMode === "grid" ? "item-grid" : ""}">
                 ${
                   filtered.length
                     ? filtered.map((item) => itemCardTemplate(item, selected?.id === item.id)).join("")
@@ -142,6 +151,7 @@ function render() {
       ${state.vaultModal ? vaultModalTemplate() : ""}
       ${state.settingsModal ? settingsModalTemplate() : ""}
       ${state.deleteConfirm ? deleteConfirmTemplate() : ""}
+      <p class="status-toast">${state.status}</p>
     </main>
   `;
   bindWorkspace();
@@ -197,12 +207,76 @@ function bindWorkspace() {
   document.querySelectorAll("[data-type-filter]").forEach((button) => {
     button.addEventListener("click", () => {
       state.typeFilter = button.dataset.typeFilter;
+      state.favoriteOnly = false;
+      state.tagFilter = null;
+      state.specialFilter = null;
       render();
     });
   });
+  document.querySelectorAll("[data-tag-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.tagFilter = button.dataset.tagFilter || null;
+      state.specialFilter = null;
+      render();
+    });
+  });
+  document.querySelector("[data-action='show-overview']")?.addEventListener("click", () => {
+    state.typeFilter = "all";
+    state.favoriteOnly = false;
+    state.tagFilter = null;
+    state.specialFilter = null;
+    render();
+  });
+  document.querySelector("[data-action='recent-filter']")?.addEventListener("click", () => {
+    state.sortMode = "updated_at";
+    state.sortDesc = true;
+    state.favoriteOnly = false;
+    state.typeFilter = "all";
+    state.tagFilter = null;
+    state.specialFilter = "recent";
+    render();
+  });
   document.querySelector("[data-action='toggle-favorite-filter']")?.addEventListener("click", () => {
     state.favoriteOnly = !state.favoriteOnly;
+    state.specialFilter = null;
     render();
+  });
+  document.querySelector("[data-action='show-read-later']")?.addEventListener("click", () => {
+    state.typeFilter = "all";
+    state.favoriteOnly = false;
+    state.tagFilter = null;
+    state.specialFilter = "readLater";
+    render();
+  });
+  document.querySelector("[data-action='show-trash']")?.addEventListener("click", () => {
+    state.typeFilter = "all";
+    state.favoriteOnly = false;
+    state.tagFilter = null;
+    state.specialFilter = "trash";
+    render();
+  });
+  document.querySelector("[data-action='new-category']")?.addEventListener("click", addCategoryTag);
+  document.querySelector("[data-action='show-storage-tip']")?.addEventListener("click", () => {
+    state.status = "当前版本使用浏览器本地存储或 Supabase，升级空间需在存储服务中配置。";
+    render();
+  });
+  document.querySelector("[data-action='refresh-items']")?.addEventListener("click", async () => {
+    await refreshItems(state.selectedId);
+    state.status = "收藏列表已刷新";
+    render();
+  });
+  document.querySelector("[data-action='open-app-menu']")?.addEventListener("click", () => {
+    state.status = "快捷操作：使用顶部搜索、创建收藏、保险箱和 AI 设置来管理收藏。";
+    render();
+  });
+  document.querySelectorAll("[data-action='share-selected']").forEach((button) => {
+    button.addEventListener("click", shareSelected);
+  });
+  document.querySelectorAll("[data-view-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.viewMode = button.dataset.viewMode;
+      render();
+    });
   });
   document.querySelector("[data-action='toggle-sort-menu']")?.addEventListener("click", () => {
     state.sortMenu = !state.sortMenu;
@@ -282,12 +356,13 @@ function bindDetail() {
       const key = event.target.dataset.edit;
       let value = event.target.value;
       if (key === "tags") {
+        const systemTags = item.tags.filter(isSystemTag);
         value = Array.from(
           new Set(
-            value
+            [...systemTags, ...value
               .split(/[,，]/)
               .map((tag) => tag.trim())
-              .filter(Boolean)
+              .filter(Boolean)]
           )
         );
       }
@@ -297,6 +372,28 @@ function bindDetail() {
       }
       await updateSelected({ [key]: value });
     });
+  });
+  document.querySelector("[data-action='focus-editor']")?.addEventListener("click", () => {
+    document.querySelector("[data-edit='content']")?.focus();
+  });
+  document.querySelector("[data-action='toggle-more-menu']")?.addEventListener("click", () => {
+    state.moreMenu = !state.moreMenu;
+    render();
+  });
+  document.querySelector("[data-action='toggle-read-later']")?.addEventListener("click", toggleReadLater);
+  document.querySelector("[data-action='duplicate-selected']")?.addEventListener("click", duplicateSelected);
+  document.querySelector("[data-action='export-selected']")?.addEventListener("click", exportSelected);
+  document.querySelector("[data-action='restore-selected']")?.addEventListener("click", restoreSelected);
+  document.querySelector("[data-action='copy-ai-summary']")?.addEventListener("click", copyAiSummary);
+  document.querySelector("[data-action='toggle-ai-summary']")?.addEventListener("click", () => {
+    state.aiSummaryExpanded = !state.aiSummaryExpanded;
+    render();
+  });
+  document.querySelectorAll("[data-action='refresh-ai-summary']").forEach((button) => {
+    button.addEventListener("click", refreshAiSummary);
+  });
+  document.querySelectorAll("[data-format]").forEach((button) => {
+    button.addEventListener("click", () => applyMarkdownFormat(button.dataset.format));
   });
 }
 
@@ -488,10 +585,17 @@ async function deleteSelected() {
 async function confirmDelete() {
   const item = selectedItem();
   if (!item) return;
-  await deleteFavorite(item.id);
+  if (isTrashed(item)) {
+    await deleteFavorite(item.id);
+    delete state.aiSummaryById[item.id];
+    saveSummaries();
+    state.status = "已永久删除收藏";
+  } else {
+    await saveFavorite({ ...item, tags: addTag(item.tags, TRASH_TAG), updated_at: new Date().toISOString() });
+    state.status = "已移入回收站";
+  }
   state.deleteConfirm = false;
   state.selectedId = null;
-  state.status = "已删除收藏";
   await refreshItems();
   render();
 }
@@ -682,6 +786,11 @@ async function copyPassword() {
 function filteredItems() {
   const query = state.query.trim().toLowerCase();
   let filtered = state.items.filter((item) => {
+    const trashed = isTrashed(item);
+    if (state.specialFilter === "trash" && !trashed) return false;
+    if (state.specialFilter !== "trash" && trashed) return false;
+    if (state.specialFilter === "readLater" && !item.tags.includes(READ_LATER_TAG)) return false;
+    if (state.specialFilter === "recent" && !item.last_used_at) return false;
     const matchesType = state.typeFilter === "all" || item.type === state.typeFilter;
     const matchesFavorite = !state.favoriteOnly || item.favorite;
     const matchesTag = !state.tagFilter || item.tags.includes(state.tagFilter);
@@ -718,6 +827,244 @@ function filteredItems() {
   });
 
   return filtered;
+}
+
+async function toggleReadLater() {
+  const item = selectedItem();
+  if (!item) return;
+  const nextTags = item.tags.includes(READ_LATER_TAG)
+    ? removeTag(item.tags, READ_LATER_TAG)
+    : addTag(item.tags, READ_LATER_TAG);
+  state.moreMenu = false;
+  await updateSelected({ tags: nextTags });
+  state.status = item.tags.includes(READ_LATER_TAG) ? "已取消稍后阅读" : "已加入稍后阅读";
+}
+
+async function restoreSelected() {
+  const item = selectedItem();
+  if (!item) return;
+  await saveFavorite({ ...item, tags: removeTag(item.tags, TRASH_TAG), updated_at: new Date().toISOString() });
+  state.specialFilter = null;
+  state.status = "已从回收站恢复";
+  await refreshItems(item.id);
+  render();
+}
+
+async function duplicateSelected() {
+  const item = selectedItem();
+  if (!item) return;
+  const clone = createBaseItem({
+    type: item.type,
+    title: `${item.title} 副本`,
+    content: item.content,
+    source_url: item.source_url,
+    domain: item.domain,
+    preview: item.preview,
+    storage_path: item.storage_path,
+    encrypted_secret: item.encrypted_secret
+  });
+  clone.tags = item.tags.filter((tag) => !isSystemTag(tag));
+  clone.note = item.note;
+  clone.favorite = item.favorite;
+  await saveFavorite(clone);
+  state.moreMenu = false;
+  state.status = "已复制为新收藏";
+  await refreshItems(clone.id);
+  render();
+}
+
+function exportSelected() {
+  const item = selectedItem();
+  if (!item) return;
+  const content = [
+    `# ${item.title}`,
+    "",
+    item.source_url ? `URL: ${item.source_url}` : "",
+    item.tags.filter((tag) => !isSystemTag(tag)).length ? `标签: ${item.tags.filter((tag) => !isSystemTag(tag)).join(", ")}` : "",
+    item.note ? `备注: ${item.note}` : "",
+    "",
+    item.content
+  ].filter((line, index) => line || index < 2).join("\n");
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${safeFilename(item.title)}.md`;
+  link.click();
+  URL.revokeObjectURL(url);
+  state.moreMenu = false;
+  state.status = "已导出 Markdown 文件";
+  render();
+}
+
+async function shareSelected() {
+  const item = selectedItem();
+  if (!item) {
+    state.status = "请先选择一条收藏";
+    render();
+    return;
+  }
+  const text = item.source_url || item.content;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: item.title, text, url: item.source_url || undefined });
+      state.status = "已打开系统分享";
+    } else {
+      await navigator.clipboard.writeText(`${item.title}\n${text}`);
+      state.status = "浏览器不支持系统分享，已复制分享内容";
+    }
+  } catch (error) {
+    if (error.name !== "AbortError") state.status = `分享失败：${error.message}`;
+  }
+  render();
+}
+
+async function addCategoryTag() {
+  const name = window.prompt("输入新分类名称，会作为标签添加到当前收藏");
+  if (!name?.trim()) return;
+  const item = selectedItem();
+  if (!item) {
+    state.status = "请先选择一条收藏，再添加分类标签";
+    render();
+    return;
+  }
+  await updateSelected({ tags: addTag(item.tags, name.trim()) });
+  state.tagFilter = name.trim();
+  state.specialFilter = null;
+  state.status = `已创建分类：${name.trim()}`;
+}
+
+async function refreshAiSummary() {
+  const item = selectedItem();
+  if (!item || item.type === "image" || item.type === "account") return;
+  state.aiLoading = true;
+  state.status = "正在生成 AI 总结";
+  render();
+  try {
+    let summary;
+    if (state.llmConfig.baseUrl && state.llmConfig.apiKey && state.llmConfig.model) {
+      summary = await runPrompt("请为下面的收藏内容生成 120 字以内的中文摘要，突出用途、关键信息和下一步动作：\n\n", item.content, state.llmConfig);
+    } else {
+      summary = makeLocalSummary(item);
+    }
+    state.aiSummaryById[item.id] = summary;
+    saveSummaries();
+    state.aiSummaryExpanded = false;
+    state.status = "AI 总结已生成";
+  } catch (error) {
+    state.status = `AI 总结失败：${error.message}`;
+  } finally {
+    state.aiLoading = false;
+    render();
+  }
+}
+
+async function copyAiSummary() {
+  const item = selectedItem();
+  if (!item) return;
+  await navigator.clipboard.writeText(state.aiSummaryById[item.id] || makeLocalSummary(item));
+  state.status = "AI 总结已复制";
+  render();
+}
+
+async function applyMarkdownFormat(format) {
+  const item = selectedItem();
+  const textarea = document.querySelector("[data-edit='content']");
+  if (!item || !textarea) return;
+  const start = textarea.selectionStart ?? 0;
+  const end = textarea.selectionEnd ?? start;
+  const before = textarea.value.slice(0, start);
+  const selected = textarea.value.slice(start, end) || markdownPlaceholder(format);
+  const after = textarea.value.slice(end);
+  const replacement = formatMarkdown(format, selected);
+  await updateSelected({ content: `${before}${replacement}${after}`, preview: makePreview(`${before}${replacement}${after}`) });
+  window.requestAnimationFrame(() => {
+    const next = document.querySelector("[data-edit='content']");
+    next?.focus();
+    next?.setSelectionRange(start, start + replacement.length);
+  });
+}
+
+function sortLabel() {
+  if (state.sortMode === "use_count") return "使用次数";
+  if (state.sortMode === "title") return "名称";
+  return "更新时间";
+}
+
+function addTag(tags, tag) {
+  return Array.from(new Set([...(tags || []), tag].filter(Boolean)));
+}
+
+function removeTag(tags, tag) {
+  return (tags || []).filter((candidate) => candidate !== tag);
+}
+
+function isSystemTag(tag) {
+  return tag === READ_LATER_TAG || tag === TRASH_TAG;
+}
+
+function isTrashed(item) {
+  return item.tags.includes(TRASH_TAG);
+}
+
+function safeFilename(value) {
+  return String(value || "favorite").replace(/[\\/:*?"<>|]/g, "_").slice(0, 80);
+}
+
+function markdownPlaceholder(format) {
+  const placeholders = {
+    link: "链接文本",
+    table: "列1 | 列2\n--- | ---\n内容 | 内容",
+    task: "待办事项",
+    code: "代码"
+  };
+  return placeholders[format] || "文本";
+}
+
+function formatMarkdown(format, text) {
+  switch (format) {
+    case "bold":
+      return `**${text}**`;
+    case "italic":
+      return `*${text}*`;
+    case "underline":
+      return `<u>${text}</u>`;
+    case "list":
+      return text.split(/\r?\n/).map((line) => `- ${line || "列表项"}`).join("\n");
+    case "code":
+      return `\n\`\`\`\n${text}\n\`\`\`\n`;
+    case "link":
+      return `[${text}](https://)`;
+    case "task":
+      return text.split(/\r?\n/).map((line) => `- [ ] ${line || "待办事项"}`).join("\n");
+    case "table":
+      return `\n${text}\n`;
+    default:
+      return text;
+  }
+}
+
+function makeLocalSummary(item) {
+  const plain = [item.title, item.note, item.preview, item.content]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!plain) return "这条收藏暂无可总结内容。";
+  const firstSentence = plain.split(/[。！？.!?]/).find(Boolean) || plain;
+  return firstSentence.length > 160 ? `${firstSentence.slice(0, 160)}...` : firstSentence;
+}
+
+function loadSummaries() {
+  try {
+    return JSON.parse(localStorage.getItem(SUMMARY_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveSummaries() {
+  localStorage.setItem(SUMMARY_KEY, JSON.stringify(state.aiSummaryById));
 }
 
 function selectedItem() {

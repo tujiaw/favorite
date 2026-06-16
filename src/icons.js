@@ -49,6 +49,17 @@ export const icons = {
   quiz: () => svg('<path d="M9.1 9a3 3 0 1 1 5.8 1c-.7 1.3-2.1 1.7-2.6 2.7"></path><path d="M12 17h.01"></path><rect width="18" height="18" x="3" y="3" rx="2"></rect>'),
   chart: () => svg('<path d="M3 3v18h18"></path><rect width="3" height="7" x="7" y="10"></rect><rect width="3" height="12" x="13" y="5"></rect><rect width="3" height="4" x="19" y="13"></rect>'),
   table: () => svg('<rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path>')
+  ,
+  home: () => svg('<path d="m3 11 9-8 9 8"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path>'),
+  clock: () => svg('<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>'),
+  folder: () => svg('<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"></path>'),
+  bookmark: () => svg('<path d="M19 21 12 17 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"></path>'),
+  list: () => svg('<path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path>'),
+  edit: () => svg('<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>'),
+  link: () => svg('<path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"></path><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"></path>'),
+  bold: () => svg('<path d="M6 4h8a4 4 0 0 1 0 8H6z"></path><path d="M6 12h9a4 4 0 0 1 0 8H6z"></path>'),
+  italic: () => svg('<path d="M19 4h-9"></path><path d="M14 20H5"></path><path d="M15 4 9 20"></path>'),
+  underline: () => svg('<path d="M6 4v6a6 6 0 0 0 12 0V4"></path><path d="M4 22h16"></path>')
 };
 
 export function installIconSupport() {
