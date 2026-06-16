@@ -608,11 +608,15 @@ svg {
 .detail-panel {
   height: 100%;
   background: rgba(255, 255, 255, 0.9);
+  min-height: 0;
 }
 
 .detail-scroll {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 28px 32px 24px;
 }
 
@@ -630,7 +634,7 @@ svg {
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 16px;
+  padding: 10px 0 16px;
 }
 
 .detail-title {
@@ -641,6 +645,7 @@ svg {
 .detail-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   border-bottom: 1px solid var(--line);
   padding: 12px 0;
@@ -654,6 +659,17 @@ svg {
   background: transparent;
   color: #374151;
   font-size: 13px;
+  text-decoration: none;
+}
+
+.toolbar-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.danger-toolbar {
+  margin-left: auto;
+  color: var(--red);
 }
 
 .more-wrap {
@@ -702,6 +718,7 @@ svg {
 
 .detail-tags-row {
   display: block;
+  margin-top: 0;
 }
 
 .field {
@@ -758,16 +775,50 @@ svg {
   align-items: center;
   gap: 6px;
   min-height: 34px;
-  padding: 4px 7px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
 }
 
 .editable-tags input {
   flex: 1;
-  min-width: 120px;
-  height: 28px;
+  min-width: 150px;
+  max-width: 220px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--body);
+  font-size: 12px;
+}
+
+.editable-tags input:focus {
+  border-color: #94bfff;
+  box-shadow: 0 0 0 3px rgba(31, 115, 255, 0.1);
+}
+
+.tag-edit-chip {
+  gap: 5px;
+}
+
+.tag-edit-chip button {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
   border: 0;
+  border-radius: 50%;
   outline: 0;
-  background: transparent;
+  background: rgba(95, 102, 115, 0.12);
+  color: #5f6673;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+}
+
+.tag-edit-chip button:hover {
+  background: rgba(239, 31, 40, 0.12);
+  color: var(--red);
 }
 
 .note-field {
@@ -775,6 +826,10 @@ svg {
 }
 
 .editor-card {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
   margin-top: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -855,13 +910,105 @@ svg {
 }
 
 .editor-card .textarea {
-  min-height: 250px;
+  flex: 1 1 auto;
+  min-height: 0;
   border: 0;
   border-radius: 0;
   font-size: 13px;
+  resize: none;
+}
+
+.markdown-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 18px 20px;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+.markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  margin: 18px 0 10px;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.markdown-preview h1 {
+  font-size: 22px;
+}
+
+.markdown-preview h2 {
+  font-size: 18px;
+}
+
+.markdown-preview h3 {
+  font-size: 15px;
+}
+
+.markdown-preview p,
+.markdown-preview ul,
+.markdown-preview ol,
+.markdown-preview pre {
+  margin: 0 0 12px;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  padding-left: 22px;
+}
+
+.markdown-preview li + li {
+  margin-top: 5px;
+}
+
+.markdown-preview code {
+  border-radius: 5px;
+  background: #f3f6fb;
+  padding: 2px 5px;
+  color: #0f172a;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.markdown-preview pre {
+  overflow: auto;
+  border-radius: 8px;
+  background: #0f172a;
+  padding: 12px;
+  color: #e5e7eb;
+}
+
+.markdown-preview pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-preview a {
+  color: var(--blue);
+}
+
+.markdown-preview input[type="checkbox"] {
+  margin-right: 6px;
 }
 
 .ai-summary-card {
+  flex: 0 0 auto;
   display: grid;
   gap: 8px;
   margin-top: 16px;
@@ -964,6 +1111,7 @@ svg {
 
 .image-preview {
   display: grid;
+  flex: 1 1 auto;
   place-items: center;
   overflow: hidden;
   min-height: 280px;
@@ -1227,7 +1375,12 @@ svg {
   }
 
   .detail-scroll {
+    overflow: auto;
     padding: 20px;
+  }
+
+  .editor-card {
+    min-height: 360px;
   }
 
   .detail-row,

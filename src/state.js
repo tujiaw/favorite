@@ -9,7 +9,7 @@ export const state = {
   specialFilter: null,
   viewMode: "list",
   sidebarCollapsed: false,
-  status: "准备收藏你的下一段资料",
+  status: "",
   quickInput: "",
   sourceModal: false,
   accountModal: false,
@@ -36,6 +36,7 @@ export const state = {
   aiSummaryById: {},
   aiSummaryVisible: false,
   aiSummaryExpanded: false,
+  contentEditing: false,
   moreMenu: false,
   installPromptEvent: null
 };

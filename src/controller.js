@@ -144,7 +144,7 @@ function render() {
       ${state.vaultModal ? vaultModalTemplate() : ""}
       ${state.settingsModal ? settingsModalTemplate() : ""}
       ${state.deleteConfirm ? deleteConfirmTemplate() : ""}
-      <p class="status-toast">${state.status}</p>
+      ${state.status ? `<p class="status-toast">${state.status}</p>` : ""}
     </main>
   `;
   bindWorkspace();
@@ -300,6 +300,7 @@ function bindWorkspace() {
     button.addEventListener("click", async () => {
       state.selectedId = button.dataset.select;
       state.passwordVisible = false;
+      state.contentEditing = false;
       // 如果是账号且有加密数据，尝试解密
       const item = state.items.find(i => i.id === button.dataset.select);
       if (item?.type === "account" && item.encrypted_secret && state.vaultPassword) {
@@ -335,17 +336,6 @@ function bindDetail() {
     field.addEventListener("change", async (event) => {
       const key = event.target.dataset.edit;
       let value = event.target.value;
-      if (key === "tags") {
-        const systemTags = item.tags.filter(isSystemTag);
-        value = Array.from(
-          new Set(
-            [...systemTags, ...value
-              .split(/[,，]/)
-              .map((tag) => tag.trim())
-              .filter(Boolean)]
-          )
-        );
-      }
       if (key === "content") {
         await commitContentDraft(value);
         return;
@@ -353,8 +343,30 @@ function bindDetail() {
       await updateSelected({ [key]: value });
     });
   });
-  document.querySelector("[data-action='focus-editor']")?.addEventListener("click", () => {
-    document.querySelector("[data-edit='content']")?.focus();
+  const tagInput = document.querySelector("[data-tag-input]");
+  tagInput?.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter" || event.key === "," || event.key === "，") {
+      event.preventDefault();
+      await addTagFromInput(event.currentTarget);
+    }
+    if (event.key === "Backspace" && !event.currentTarget.value) {
+      await removeLastVisibleTag();
+    }
+  });
+  tagInput?.addEventListener("blur", async (event) => {
+    await addTagFromInput(event.currentTarget);
+  });
+  document.querySelectorAll("[data-remove-tag]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await removeVisibleTag(button.dataset.removeTag);
+    });
+  });
+  document.querySelector("[data-action='toggle-content-edit']")?.addEventListener("click", () => {
+    state.contentEditing = !state.contentEditing;
+    render();
+    if (state.contentEditing) {
+      window.requestAnimationFrame(() => document.querySelector("[data-edit='content']")?.focus());
+    }
   });
   document.querySelector("[data-action='toggle-more-menu']")?.addEventListener("click", () => {
     state.moreMenu = !state.moreMenu;
@@ -763,16 +775,8 @@ async function togglePasswordVisibility() {
 
 async function copyText(text) {
   await navigator.clipboard.writeText(text);
-  const item = selectedItem();
-  if (item) {
-    await updateSelected({
-      last_used_at: new Date().toISOString(),
-      use_count: item.use_count + 1
-    });
-  } else {
-    state.status = "已复制到剪贴板";
-    render();
-  }
+  state.status = "已复制到剪贴板";
+  render();
 }
 
 async function copyPassword() {
@@ -916,6 +920,35 @@ async function addCategoryTag() {
   state.tagFilter = name.trim();
   state.specialFilter = null;
   state.status = `已创建分类：${name.trim()}`;
+}
+
+async function addTagFromInput(input) {
+  const raw = input.value.trim();
+  if (!raw) return;
+  const item = selectedItem();
+  if (!item) return;
+  const nextTags = raw
+    .split(/[,，]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .reduce((tags, tag) => addTag(tags, tag), item.tags);
+  input.value = "";
+  await updateSelected({ tags: nextTags });
+}
+
+async function removeVisibleTag(tag) {
+  const item = selectedItem();
+  if (!item || !tag) return;
+  await updateSelected({ tags: item.tags.filter((candidate) => candidate !== tag) });
+}
+
+async function removeLastVisibleTag() {
+  const item = selectedItem();
+  if (!item) return;
+  const visibleTags = item.tags.filter((tag) => !isSystemTag(tag));
+  const last = visibleTags.at(-1);
+  if (!last) return;
+  await removeVisibleTag(last);
 }
 
 async function refreshAiSummary() {

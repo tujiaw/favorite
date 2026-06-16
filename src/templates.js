@@ -275,6 +275,19 @@ export function detailTemplate(item) {
               </section>
             `
             : `
+              <div class="detail-row detail-tags-row">
+                <div class="tags-field">
+                  <div class="editable-tags" role="group" aria-label="标签">
+                    ${item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => `
+                      <span class="meta-pill tag-edit-chip">
+                        ${escapeHtml(tag)}
+                        <button type="button" title="移除标签 ${escapeAttr(tag)}" data-remove-tag="${escapeAttr(tag)}">×</button>
+                      </span>
+                    `).join("")}
+                    <input data-tag-input placeholder="添加标签后按 Enter" />
+                  </div>
+                </div>
+              </div>
               <div class="detail-header">
                 <div class="detail-title-wrap">
                   <div class="min-w-0">
@@ -284,27 +297,25 @@ export function detailTemplate(item) {
                 </div>
               </div>
               <div class="detail-toolbar">
-                <button class="toolbar-button" data-action="focus-editor">${icons.edit()} 编辑</button>
+                <button class="toolbar-button" data-action="toggle-content-edit">${icons.edit()} ${state.contentEditing ? "预览" : "编辑"}</button>
                 <button class="toolbar-button" data-action="copy-content">${icons.copy()} 复制</button>
                 <button class="toolbar-button" data-action="share-selected">${icons.share()} 分享</button>
+                ${
+                  item.source_url
+                    ? `<a class="toolbar-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
+                    : `<button class="toolbar-button" disabled>${icons.eyeOff()} 无链接</button>`
+                }
                 <div class="more-wrap">
                   <button class="toolbar-button" data-action="toggle-more-menu">${icons.more()} 更多</button>
                   ${state.moreMenu ? `
                     <div class="more-menu">
                       <button data-action="duplicate-selected">${icons.copy()} 复制为新收藏</button>
                       <button data-action="export-selected">${icons.external()} 导出文本</button>
+                      <button data-action="delete-selected">${icons.trash()} 删除</button>
                     </div>
                   ` : ""}
                 </div>
-              </div>
-              <div class="detail-row detail-tags-row">
-                <label class="field tags-field">
-                  <span>标签</span>
-                  <div class="editable-tags">
-                    ${item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => `<span class="meta-pill">${escapeHtml(tag)}</span>`).join("")}
-                    <input data-edit="tags" placeholder="+" value="${escapeAttr(item.tags.filter((tag) => !isSystemTag(tag)).join(", "))}" />
-                  </div>
-                </label>
+                <button class="toolbar-button danger-toolbar" data-action="delete-selected">${icons.trash()} 删除</button>
               </div>
               <div class="detail-row">
                 <label class="field">
@@ -324,44 +335,38 @@ export function detailTemplate(item) {
               ${
                 item.type === "image"
                   ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
-                  : `<div class="editor-card">
-                      <div class="editor-toolbar">
-                        <button title="粗体" data-format="bold">${icons.bold()}</button>
-                        <button title="斜体" data-format="italic">${icons.italic()}</button>
-                        <button title="下划线" data-format="underline">${icons.underline()}</button>
-                        <button title="无序列表" data-format="list">${icons.list()}</button>
-                        <button title="代码块" data-format="code">${icons.code()}</button>
-                        <button title="链接" data-format="link">${icons.link()}</button>
-                        <button title="待办" data-format="task">${icons.check()}</button>
-                        <button title="表格" data-format="table">${icons.table()}</button>
-                        <div class="editor-ai-menu">
-                          <button class="ai-button">${icons.sparkles()} AI 智能处理 ${icons.chevronDown()}</button>
-                          <div class="ai-popover">
-                            ${state.prompts.map((p) => `
-                              <button
-                                data-action="run-ai"
-                                data-prompt-id="${escapeAttr(p.id)}"
-                                title="${escapeAttr(p.name)}"
-                                ${state.aiLoading ? "disabled" : ""}
-                              >${icons.sparkles()} ${escapeHtml(p.name)}${state.aiLoading ? "…" : ""}</button>
-                            `).join("")}
+                  : state.contentEditing
+                    ? `<div class="editor-card">
+                        <div class="editor-toolbar">
+                          <button title="粗体" data-format="bold">${icons.bold()}</button>
+                          <button title="斜体" data-format="italic">${icons.italic()}</button>
+                          <button title="下划线" data-format="underline">${icons.underline()}</button>
+                          <button title="无序列表" data-format="list">${icons.list()}</button>
+                          <button title="代码块" data-format="code">${icons.code()}</button>
+                          <button title="链接" data-format="link">${icons.link()}</button>
+                          <button title="待办" data-format="task">${icons.check()}</button>
+                          <button title="表格" data-format="table">${icons.table()}</button>
+                          <div class="editor-ai-menu">
+                            <button class="ai-button">${icons.sparkles()} AI 智能处理 ${icons.chevronDown()}</button>
+                            <div class="ai-popover">
+                              ${state.prompts.map((p) => `
+                                <button
+                                  data-action="run-ai"
+                                  data-prompt-id="${escapeAttr(p.id)}"
+                                  title="${escapeAttr(p.name)}"
+                                  ${state.aiLoading ? "disabled" : ""}
+                                >${icons.sparkles()} ${escapeHtml(p.name)}${state.aiLoading ? "…" : ""}</button>
+                              `).join("")}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
-                    </div>`
+                        <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
+                      </div>`
+                    : `<article class="markdown-preview">${renderMarkdown(item.content)}</article>`
               }
             `
         }
         ${item.type !== "account" && state.aiSummaryVisible && state.aiSummaryById[item.id] ? aiSummaryTemplate(item) : ""}
-        <div class="detail-actions">
-          ${
-            item.source_url
-              ? `<a class="outline-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
-              : `<button class="outline-button" disabled>${icons.eyeOff()} 无链接</button>`
-          }
-          <button class="danger-button" data-action="delete-selected">${icons.trash()} 删除</button>
-        </div>
       </div>
     </aside>
   `;
@@ -604,6 +609,98 @@ function categoryLabel(type) {
 function summaryFromItem(item) {
   const source = item.preview || item.note || item.content || item.title;
   return source || "当前收藏内容已准备好进行 AI 整理。";
+}
+
+function renderMarkdown(value) {
+  const escaped = escapeHtml(value || "");
+  const lines = escaped.split(/\r?\n/);
+  const html = [];
+  let inCode = false;
+  let list = null;
+  let paragraph = [];
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
+    paragraph = [];
+  };
+  const closeList = () => {
+    if (!list) return;
+    html.push(`</${list}>`);
+    list = null;
+  };
+
+  for (const line of lines) {
+    if (/^```/.test(line.trim())) {
+      flushParagraph();
+      closeList();
+      html.push(inCode ? "</code></pre>" : "<pre><code>");
+      inCode = !inCode;
+      continue;
+    }
+    if (inCode) {
+      html.push(`${line}\n`);
+      continue;
+    }
+    if (!line.trim()) {
+      flushParagraph();
+      closeList();
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      html.push(`<h${heading[1].length}>${inlineMarkdown(heading[2])}</h${heading[1].length}>`);
+      continue;
+    }
+    const task = line.match(/^-\s+\[( |x)\]\s+(.+)$/i);
+    if (task) {
+      flushParagraph();
+      if (list !== "ul") {
+        closeList();
+        list = "ul";
+        html.push("<ul>");
+      }
+      html.push(`<li><input type="checkbox" disabled ${task[1].toLowerCase() === "x" ? "checked" : ""}> ${inlineMarkdown(task[2])}</li>`);
+      continue;
+    }
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      flushParagraph();
+      if (list !== "ul") {
+        closeList();
+        list = "ul";
+        html.push("<ul>");
+      }
+      html.push(`<li>${inlineMarkdown(bullet[1])}</li>`);
+      continue;
+    }
+    const ordered = line.match(/^\d+\.\s+(.+)$/);
+    if (ordered) {
+      flushParagraph();
+      if (list !== "ol") {
+        closeList();
+        list = "ol";
+        html.push("<ol>");
+      }
+      html.push(`<li>${inlineMarkdown(ordered[1])}</li>`);
+      continue;
+    }
+    paragraph.push(line);
+  }
+  flushParagraph();
+  closeList();
+  if (inCode) html.push("</code></pre>");
+  return html.join("");
+}
+
+function inlineMarkdown(value) {
+  return value
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
 }
 
 function truncate(value, size) {
