@@ -38,6 +38,7 @@ export const state = {
   aiSummaryExpanded: false,
   contentEditing: false,
   moreMenu: false,
+  aiMenu: false,
   installPromptEvent: null
 };
 

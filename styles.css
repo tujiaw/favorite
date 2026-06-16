@@ -593,31 +593,19 @@ svg {
   background: #fff4dc;
 }
 
-.ai-list-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: auto;
-  border-radius: 999px;
-  background: #f2f0ff;
-  padding: 4px 9px;
-  color: #6155f6;
-  font-weight: 700;
-}
-
 .detail-panel {
   height: 100%;
   background: rgba(255, 255, 255, 0.9);
   min-height: 0;
+  overflow: auto;
 }
 
 .detail-scroll {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  padding: 28px 32px 24px;
+  min-height: 100%;
+  overflow: visible;
+  padding: 18px 18px 14px;
 }
 
 .detail-empty {
@@ -626,6 +614,109 @@ svg {
   min-height: 360px;
   color: #7a8392;
   text-align: center;
+}
+
+.document-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.document-title-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.document-title-input {
+  width: min(100%, 420px);
+  min-width: 0;
+  border: 0;
+  border-left: 2px solid #3b82f6;
+  outline: 0;
+  background: transparent;
+  padding: 0 0 0 8px;
+  color: #111827;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.document-title-input:focus {
+  border-left-color: var(--blue);
+  background: #f8fbff;
+}
+
+.doc-head-button,
+.doc-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: #374151;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.doc-head-icon {
+  width: 38px;
+  padding: 0;
+}
+
+.document-tags-row {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  min-width: 0;
+}
+
+.detail-type-select {
+  width: 78px;
+  height: 28px;
+  appearance: none;
+  border: 1px solid #cfe0ff;
+  border-radius: 999px;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--blue) 50%) right 12px center / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--blue) 50%, transparent 50%) right 8px center / 5px 5px no-repeat,
+    #f4f7ff;
+  padding: 0 18px 0 10px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 28px;
+  outline: 0;
+  cursor: pointer;
+}
+
+.detail-type-select:focus {
+  border-color: #94bfff;
+  box-shadow: 0 0 0 3px rgba(31, 115, 255, 0.1);
+}
+
+.document-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 16px;
+  color: #7a8392;
+  font-size: 12px;
+}
+
+.document-meta-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .detail-header {
@@ -649,6 +740,24 @@ svg {
   gap: 16px;
   border-bottom: 1px solid var(--line);
   padding: 12px 0;
+}
+
+.document-tag-actions {
+  flex-wrap: nowrap;
+  min-width: max-content;
+  border-bottom: 0;
+  padding: 0;
+  gap: 6px;
+}
+
+.document-tag-actions .toolbar-button {
+  height: 30px;
+  font-size: 12px;
+}
+
+.document-tag-actions .ai-button {
+  height: 30px;
+  padding: 0 8px;
 }
 
 .toolbar-button {
@@ -781,9 +890,9 @@ svg {
 }
 
 .editable-tags input {
-  flex: 1;
-  min-width: 150px;
-  max-width: 220px;
+  flex: 1 0 100%;
+  min-width: 0;
+  max-width: none;
   height: 26px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -795,6 +904,23 @@ svg {
 .editable-tags input:focus {
   border-color: #94bfff;
   box-shadow: 0 0 0 3px rgba(31, 115, 255, 0.1);
+}
+
+.document-tags-row .editable-tags {
+  min-width: 0;
+  gap: 8px;
+  min-height: 30px;
+  overflow: hidden;
+}
+
+.document-tags-row .editable-tags input {
+  flex: 1 1 96px;
+  min-width: 78px;
+  max-width: 120px;
+  height: 30px;
+  border-color: var(--line);
+  background: #fff;
+  color: #667085;
 }
 
 .tag-edit-chip {
@@ -827,12 +953,19 @@ svg {
 
 .editor-card {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  min-height: 0;
-  margin-top: 14px;
+  margin-top: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  background: #fff;
+  overflow: visible;
+}
+
+.document-preview-card {
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
   background: #fff;
   overflow: visible;
 }
@@ -847,6 +980,12 @@ svg {
   padding: 0 14px;
 }
 
+.document-editor-toolbar {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
 .editor-toolbar button {
   display: inline-flex;
   align-items: center;
@@ -857,18 +996,33 @@ svg {
   color: #374151;
 }
 
-.editor-toolbar .ai-button {
+.editor-toolbar button:disabled {
+  cursor: default;
+  opacity: 0.9;
+}
+
+.ai-button {
   height: 28px;
+  border: 1px solid #dbe4ff;
   border-radius: 999px;
-  background: #f5f7ff;
-  padding: 0 10px;
+  background: #f7f7ff;
+  padding: 0 8px;
   font-size: 12px;
-  color: #3657ff;
+  color: #4f46e5;
   font-weight: 700;
+}
+
+.ai-button.active,
+.ai-button:hover {
+  background: #eef0ff;
+  border-color: #c9d2ff;
 }
 
 .editor-ai-menu {
   position: relative;
+}
+
+.editor-toolbar .editor-ai-menu {
   margin-left: auto;
 }
 
@@ -876,42 +1030,44 @@ svg {
   position: absolute;
   top: 34px;
   right: 0;
-  z-index: 12;
+  z-index: 18;
   display: grid;
-  gap: 6px;
-  width: 168px;
+  gap: 4px;
+  width: 148px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: #fff;
-  padding: 10px;
+  padding: 6px;
   box-shadow: var(--shadow-sm);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-4px);
-  transition: 0.16s ease;
-}
-
-.editor-ai-menu:hover .ai-popover,
-.editor-ai-menu:focus-within .ai-popover {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
 }
 
 .ai-popover button {
+  display: inline-flex;
+  align-items: center;
   justify-content: flex-start;
-  height: 28px;
+  gap: 6px;
+  min-height: 30px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
   padding: 0 8px;
+  color: #374151;
+  font-size: 12px;
+  text-align: left;
 }
 
 .ai-popover button:hover {
-  background: #f6f7fb;
+  background: #f6f7ff;
+  color: #4f46e5;
+}
+
+.ai-popover button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .editor-card .textarea {
-  flex: 1 1 auto;
-  min-height: 0;
+  min-height: 420px;
   border: 0;
   border-radius: 0;
   font-size: 13px;
@@ -919,17 +1075,34 @@ svg {
 }
 
 .markdown-preview {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin-top: 14px;
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  margin-top: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
   background: #fff;
-  padding: 18px 20px;
+  padding: 20px;
   color: #1f2937;
   font-size: 14px;
   line-height: 1.72;
+}
+
+.document-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  color: #7a8392;
+  font-size: 12px;
+}
+
+.document-footer span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #4f9f76;
 }
 
 .markdown-preview > :first-child {
@@ -963,7 +1136,8 @@ svg {
 .markdown-preview p,
 .markdown-preview ul,
 .markdown-preview ol,
-.markdown-preview pre {
+.markdown-preview pre,
+.markdown-table-wrap {
   margin: 0 0 12px;
 }
 
@@ -1005,6 +1179,36 @@ svg {
 
 .markdown-preview input[type="checkbox"] {
   margin-right: 6px;
+}
+
+.markdown-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.markdown-preview table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 10px;
+  vertical-align: top;
+}
+
+.markdown-preview th {
+  background: #f5f7fb;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.markdown-preview tr:last-child td {
+  border-bottom: 0;
 }
 
 .ai-summary-card {
@@ -1129,7 +1333,6 @@ svg {
 
 .vault-box,
 .empty-list,
-.confirm-item,
 .vault-status,
 .prompt-item {
   border: 1px solid var(--line);
@@ -1145,6 +1348,15 @@ svg {
 .empty-list {
   color: #6b7280;
   text-align: center;
+}
+
+.confirm-content {
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.confirm-content p {
+  margin: 0;
 }
 
 .vault-title,
@@ -1173,6 +1385,26 @@ svg {
 .account-field {
   display: grid;
   grid-template-columns: 64px 1fr;
+}
+
+.account-url-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.account-open-link {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--blue);
+  text-decoration: none;
+}
+
+.account-open-link:disabled {
+  cursor: not-allowed;
+  color: #9ca3af;
+  opacity: 0.6;
 }
 
 .field-value-input,
@@ -1375,7 +1607,7 @@ svg {
   }
 
   .detail-scroll {
-    overflow: auto;
+    overflow: visible;
     padding: 20px;
   }
 

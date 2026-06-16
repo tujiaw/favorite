@@ -368,8 +368,16 @@ function bindDetail() {
       window.requestAnimationFrame(() => document.querySelector("[data-edit='content']")?.focus());
     }
   });
-  document.querySelector("[data-action='toggle-more-menu']")?.addEventListener("click", () => {
+  document.querySelector("[data-action='toggle-more-menu']")?.addEventListener("click", (event) => {
+    event.stopPropagation();
     state.moreMenu = !state.moreMenu;
+    state.aiMenu = false;
+    render();
+  });
+  document.querySelector("[data-action='toggle-ai-menu']")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    state.aiMenu = !state.aiMenu;
+    state.moreMenu = false;
     render();
   });
   document.querySelector("[data-action='duplicate-selected']")?.addEventListener("click", duplicateSelected);
@@ -390,6 +398,38 @@ function bindDetail() {
   document.querySelectorAll("[data-format]").forEach((button) => {
     button.addEventListener("click", () => applyMarkdownFormat(button.dataset.format));
   });
+  bindTransientMenus();
+}
+
+function bindTransientMenus() {
+  if (!state.moreMenu && !state.aiMenu) return;
+  window.setTimeout(() => {
+    document.addEventListener("click", closeTransientMenusOnOutsideClick, { once: true });
+    document.addEventListener("keydown", closeTransientMenusOnEscape, { once: true });
+  }, 0);
+}
+
+function closeTransientMenusOnOutsideClick(event) {
+  if (event.target.closest?.(".more-wrap, .editor-ai-menu")) {
+    document.addEventListener("click", closeTransientMenusOnOutsideClick, { once: true });
+    return;
+  }
+  closeTransientMenus();
+}
+
+function closeTransientMenusOnEscape(event) {
+  if (event.key !== "Escape") {
+    document.addEventListener("keydown", closeTransientMenusOnEscape, { once: true });
+    return;
+  }
+  closeTransientMenus();
+}
+
+function closeTransientMenus() {
+  if (!state.moreMenu && !state.aiMenu) return;
+  state.moreMenu = false;
+  state.aiMenu = false;
+  render();
 }
 
 function bindModal() {
@@ -934,12 +974,14 @@ async function addTagFromInput(input) {
     .reduce((tags, tag) => addTag(tags, tag), item.tags);
   input.value = "";
   await updateSelected({ tags: nextTags });
+  focusTagInput();
 }
 
 async function removeVisibleTag(tag) {
   const item = selectedItem();
   if (!item || !tag) return;
   await updateSelected({ tags: item.tags.filter((candidate) => candidate !== tag) });
+  focusTagInput();
 }
 
 async function removeLastVisibleTag() {
@@ -949,6 +991,14 @@ async function removeLastVisibleTag() {
   const last = visibleTags.at(-1);
   if (!last) return;
   await removeVisibleTag(last);
+}
+
+function focusTagInput() {
+  window.requestAnimationFrame(() => {
+    const input = document.querySelector("[data-tag-input]");
+    input?.focus();
+    input?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
 }
 
 async function refreshAiSummary() {

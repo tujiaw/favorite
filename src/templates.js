@@ -218,7 +218,6 @@ export function itemCardTemplate(item, selected) {
         ${item.domain ? `<span>${escapeHtml(item.domain)}</span>` : ""}
         ${item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => `<span class="meta-tag">${escapeHtml(tag)}</span>`).join("")}
         <span>${date}</span>
-        ${selected && item.type !== "image" && item.type !== "account" ? `<span class="ai-list-action" data-action="refresh-ai-summary">${icons.sparkles()} AI 总结</span>` : ""}
       </div>
     </button>
   `;
@@ -236,6 +235,9 @@ export function detailTemplate(item) {
     `;
   }
 
+  const createdAt = formatDetailDate(item.created_at);
+  const updatedAt = formatDetailDate(item.updated_at || item.created_at);
+  const visibleTags = item.tags.filter((tag) => !isSystemTag(tag));
   return `
     <aside class="detail-panel">
       <div class="detail-scroll">
@@ -248,6 +250,17 @@ export function detailTemplate(item) {
                   <button class="icon-button" style="margin-left: auto;" data-action="toggle-favorite">${icons.heart(item.favorite)}</button>
                 </div>
                 <div class="account-fields">
+                  <div class="account-field account-url-field">
+                    <label class="field-label">网址</label>
+                    <div class="account-url-control">
+                      <input class="field-value-input" data-edit="source_url" value="${escapeAttr(item.source_url || "")}" placeholder="https://" />
+                      ${
+                        item.source_url
+                          ? `<a class="icon-button compact account-open-link" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer" title="新标签页打开网址">${icons.external()}</a>`
+                          : `<button class="icon-button compact account-open-link" disabled title="暂无网址">${icons.external()}</button>`
+                      }
+                    </div>
+                  </div>
                   <div class="account-field">
                     <label class="field-label">用户名</label>
                     <input class="field-value-input" data-edit="content" value="${escapeAttr(item.content)}" />
@@ -267,46 +280,17 @@ export function detailTemplate(item) {
                       `
                       : ""
                   }
-                  <div class="account-field">
-                    <label class="field-label">网站</label>
-                    <input class="field-value-input" data-edit="source_url" value="${escapeAttr(item.source_url || "")}" placeholder="https://" />
-                  </div>
                 </div>
               </section>
             `
             : `
-              <div class="detail-row detail-tags-row">
-                <div class="tags-field">
-                  <div class="editable-tags" role="group" aria-label="标签">
-                    ${item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => `
-                      <span class="meta-pill tag-edit-chip">
-                        ${escapeHtml(tag)}
-                        <button type="button" title="移除标签 ${escapeAttr(tag)}" data-remove-tag="${escapeAttr(tag)}">×</button>
-                      </span>
-                    `).join("")}
-                    <input data-tag-input placeholder="添加标签后按 Enter" />
-                  </div>
+              <div class="document-head">
+                <div class="document-title-wrap">
+                  <input class="document-title-input" data-edit="title" value="${escapeAttr(item.title)}" aria-label="标题" />
                 </div>
-              </div>
-              <div class="detail-header">
-                <div class="detail-title-wrap">
-                  <div class="min-w-0">
-                    <h2 class="detail-title">${escapeHtml(item.title)} <span class="inline-type">${TYPES[item.type].label}</span></h2>
-                  </div>
-                  <button class="favorite-toggle" title="星标收藏" data-action="toggle-favorite">${icons.star(item.favorite)}</button>
-                </div>
-              </div>
-              <div class="detail-toolbar">
-                <button class="toolbar-button" data-action="toggle-content-edit">${icons.edit()} ${state.contentEditing ? "预览" : "编辑"}</button>
-                <button class="toolbar-button" data-action="copy-content">${icons.copy()} 复制</button>
-                <button class="toolbar-button" data-action="share-selected">${icons.share()} 分享</button>
-                ${
-                  item.source_url
-                    ? `<a class="toolbar-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
-                    : `<button class="toolbar-button" disabled>${icons.eyeOff()} 无链接</button>`
-                }
                 <div class="more-wrap">
-                  <button class="toolbar-button" data-action="toggle-more-menu">${icons.more()} 更多</button>
+                  <button class="doc-head-button" title="星标收藏" data-action="toggle-favorite">${icons.star(item.favorite)} 收藏</button>
+                  <button class="doc-head-icon" title="更多" data-action="toggle-more-menu">${icons.more()}</button>
                   ${state.moreMenu ? `
                     <div class="more-menu">
                       <button data-action="duplicate-selected">${icons.copy()} 复制为新收藏</button>
@@ -315,55 +299,58 @@ export function detailTemplate(item) {
                     </div>
                   ` : ""}
                 </div>
-                <button class="toolbar-button danger-toolbar" data-action="delete-selected">${icons.trash()} 删除</button>
               </div>
-              <div class="detail-row">
-                <label class="field">
-                  <span>标题</span>
-                  <input class="input" data-edit="title" value="${escapeAttr(item.title)}" />
-                </label>
-                <label class="field">
-                  <span>类型</span>
-                  <select class="select" data-edit="type">
+
+              <div class="document-tags-row">
+                <select class="detail-type-select" data-edit="type" aria-label="类型">
                     ${Object.keys(TYPES)
                       .filter((type) => type !== "all" && type !== "account")
                       .map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${TYPES[type].label}</option>`)
                       .join("")}
-                  </select>
-                </label>
+                </select>
+                <div class="editable-tags" role="group" aria-label="标签">
+                  ${visibleTags.map((tag) => `
+                    <span class="meta-pill tag-edit-chip">
+                      ${escapeHtml(tag)}
+                      <button type="button" title="移除标签 ${escapeAttr(tag)}" data-remove-tag="${escapeAttr(tag)}">×</button>
+                    </span>
+                  `).join("")}
+                  <input data-tag-input placeholder="+ 添加标签" />
+                </div>
+                <div class="detail-toolbar document-tag-actions">
+                  <button class="toolbar-button" data-action="toggle-content-edit">${icons.eye()} ${state.contentEditing ? "预览" : "编辑"}</button>
+                  <button class="toolbar-button" data-action="copy-content">${icons.copy()} 复制</button>
+                  ${item.type !== "image" ? aiActionMenuTemplate() : ""}
+                  ${
+                    item.source_url
+                      ? `<a class="toolbar-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
+                      : ""
+                  }
+                </div>
               </div>
+
+              <div class="document-meta-row">
+                <span>${icons.text()} 创建于 ${createdAt}</span>
+                <span>${icons.clock()} 更新于 ${updatedAt}</span>
+                <span>${icons.lock()} ${item.encrypted_secret ? "已加密" : "未加密"}</span>
+              </div>
+
               ${
                 item.type === "image"
                   ? `<div class="image-preview"><img src="${escapeAttr(item.content)}" alt="${escapeAttr(item.title)}" /></div>`
                   : state.contentEditing
                     ? `<div class="editor-card">
-                        <div class="editor-toolbar">
-                          <button title="粗体" data-format="bold">${icons.bold()}</button>
-                          <button title="斜体" data-format="italic">${icons.italic()}</button>
-                          <button title="下划线" data-format="underline">${icons.underline()}</button>
-                          <button title="无序列表" data-format="list">${icons.list()}</button>
-                          <button title="代码块" data-format="code">${icons.code()}</button>
-                          <button title="链接" data-format="link">${icons.link()}</button>
-                          <button title="待办" data-format="task">${icons.check()}</button>
-                          <button title="表格" data-format="table">${icons.table()}</button>
-                          <div class="editor-ai-menu">
-                            <button class="ai-button">${icons.sparkles()} AI 智能处理 ${icons.chevronDown()}</button>
-                            <div class="ai-popover">
-                              ${state.prompts.map((p) => `
-                                <button
-                                  data-action="run-ai"
-                                  data-prompt-id="${escapeAttr(p.id)}"
-                                  title="${escapeAttr(p.name)}"
-                                  ${state.aiLoading ? "disabled" : ""}
-                                >${icons.sparkles()} ${escapeHtml(p.name)}${state.aiLoading ? "…" : ""}</button>
-                              `).join("")}
-                            </div>
-                          </div>
-                        </div>
+                        ${editorToolbarTemplate()}
                         <textarea class="textarea" data-edit="content">${escapeHtml(item.content)}</textarea>
                       </div>`
-                    : `<article class="markdown-preview">${renderMarkdown(item.content)}</article>`
+                    : `<div class="document-preview-card">
+                        <article class="markdown-preview">${renderMarkdown(item.content)}</article>
+                      </div>`
               }
+              <div class="document-footer">
+                <span>共 ${contentWordCount(item.content)} 字</span>
+                <span>${icons.check()} 自动保存成功 ${updatedAt.split(" ")[1] || updatedAt}</span>
+              </div>
             `
         }
         ${item.type !== "account" && state.aiSummaryVisible && state.aiSummaryById[item.id] ? aiSummaryTemplate(item) : ""}
@@ -391,6 +378,57 @@ function aiSummaryTemplate(item) {
       </div>
     </section>
   `;
+}
+
+function editorToolbarTemplate() {
+  return `
+    <div class="editor-toolbar document-editor-toolbar">
+      <button title="粗体" data-format="bold">${icons.bold()}</button>
+      <button title="斜体" data-format="italic">${icons.italic()}</button>
+      <button title="下划线" data-format="underline">${icons.underline()}</button>
+      <button title="无序列表" data-format="list">${icons.list()}</button>
+      <button title="代码块" data-format="code">${icons.code()}</button>
+      <button title="链接" data-format="link">${icons.link()}</button>
+      <button title="待办" data-format="task">${icons.check()}</button>
+      <button title="表格" data-format="table">${icons.table()}</button>
+    </div>
+  `;
+}
+
+function aiActionMenuTemplate() {
+  return `
+    <div class="editor-ai-menu">
+      <button class="toolbar-button ai-button ${state.aiMenu ? "active" : ""}" data-action="toggle-ai-menu">${icons.sparkles()} AI ${icons.chevronDown()}</button>
+      ${state.aiMenu ? `<div class="ai-popover">
+        <button data-action="refresh-ai-summary" ${state.aiLoading ? "disabled" : ""}>
+          ${icons.sparkles()} AI 总结${state.aiLoading ? "…" : ""}
+        </button>
+        ${state.prompts.map((p) => `
+          <button
+            data-action="run-ai"
+            data-prompt-id="${escapeAttr(p.id)}"
+            title="${escapeAttr(p.name)}"
+            ${state.aiLoading ? "disabled" : ""}
+          >${icons.sparkles()} ${escapeHtml(p.name)}${state.aiLoading ? "…" : ""}</button>
+        `).join("")}
+      </div>` : ""}
+    </div>
+  `;
+}
+
+function formatDetailDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function contentWordCount(value) {
+  return String(value || "").trim().length;
 }
 
 export function settingsModalTemplate() {
@@ -451,8 +489,6 @@ export function settingsModalTemplate() {
 }
 
 export function deleteConfirmTemplate() {
-  const item = state.items.find(i => i.id === state.selectedId);
-  if (!item) return "";
   return `
     <div class="modal-backdrop">
       <div class="modal-card confirm-modal">
@@ -464,13 +500,6 @@ export function deleteConfirmTemplate() {
         </div>
         <div class="confirm-content">
           <p>确定要删除这条收藏吗？</p>
-          <div class="confirm-item">
-            <span class="type-badge">${TYPES[item.type].icon()}</span>
-            <div class="confirm-item-info">
-              <div class="confirm-item-title">${escapeHtml(item.title)}</div>
-              <div class="confirm-item-preview">${escapeHtml(item.preview || item.content)}</div>
-            </div>
-          </div>
         </div>
         <div class="modal-actions">
           <button class="outline-button" data-action="cancel-delete">取消</button>
@@ -630,7 +659,8 @@ function renderMarkdown(value) {
     list = null;
   };
 
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     if (/^```/.test(line.trim())) {
       flushParagraph();
       closeList();
@@ -652,6 +682,19 @@ function renderMarkdown(value) {
       flushParagraph();
       closeList();
       html.push(`<h${heading[1].length}>${inlineMarkdown(heading[2])}</h${heading[1].length}>`);
+      continue;
+    }
+    if (isMarkdownTableStart(lines, index)) {
+      flushParagraph();
+      closeList();
+      const tableLines = [line, lines[index + 1]];
+      index += 2;
+      while (index < lines.length && isMarkdownTableRow(lines[index])) {
+        tableLines.push(lines[index]);
+        index += 1;
+      }
+      index -= 1;
+      html.push(renderMarkdownTable(tableLines));
       continue;
     }
     const task = line.match(/^-\s+\[( |x)\]\s+(.+)$/i);
@@ -693,6 +736,56 @@ function renderMarkdown(value) {
   closeList();
   if (inCode) html.push("</code></pre>");
   return html.join("");
+}
+
+function isMarkdownTableStart(lines, index) {
+  return isMarkdownTableRow(lines[index]) && isMarkdownTableDivider(lines[index + 1] || "");
+}
+
+function isMarkdownTableRow(line) {
+  const trimmed = String(line || "").trim();
+  return trimmed.includes("|") && /^\|?.+\|.+\|?$/.test(trimmed);
+}
+
+function isMarkdownTableDivider(line) {
+  const cells = splitMarkdownTableRow(line);
+  return cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function splitMarkdownTableRow(line) {
+  return String(line || "")
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|");
+}
+
+function tableAlignment(cell) {
+  const value = cell.trim();
+  if (value.startsWith(":") && value.endsWith(":")) return "center";
+  if (value.endsWith(":")) return "right";
+  return "left";
+}
+
+function renderMarkdownTable(lines) {
+  const headers = splitMarkdownTableRow(lines[0]);
+  const alignments = splitMarkdownTableRow(lines[1]).map(tableAlignment);
+  const rows = lines.slice(2).map(splitMarkdownTableRow);
+  const cellStyle = (index) => ` style="text-align: ${alignments[index] || "left"}"`;
+  return `
+    <div class="markdown-table-wrap">
+      <table>
+        <thead>
+          <tr>${headers.map((cell, index) => `<th${cellStyle(index)}>${inlineMarkdown(cell.trim())}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map((row) => `<tr>${headers.map((_, index) => `<td${cellStyle(index)}>${inlineMarkdown((row[index] || "").trim())}</td>`).join("")}</tr>`)
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function inlineMarkdown(value) {
