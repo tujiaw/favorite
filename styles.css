@@ -341,43 +341,6 @@ svg {
   color: var(--blue);
 }
 
-.storage-card {
-  display: grid;
-  gap: 8px;
-  margin-top: auto;
-}
-
-.storage-card div:first-child {
-  display: flex;
-  justify-content: space-between;
-  color: #7a8392;
-  font-size: 13px;
-}
-
-.storage-meter {
-  height: 8px;
-  border-radius: 999px;
-  background: #dfe5ee;
-  overflow: hidden;
-}
-
-.storage-meter i {
-  display: block;
-  width: 24%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--blue);
-}
-
-.upgrade-button {
-  height: 34px;
-  border: 1px solid #b8cff8;
-  border-radius: var(--radius);
-  background: #f4f8ff;
-  color: var(--blue);
-  font-weight: 700;
-}
-
 .conversation-panel {
   display: grid;
   grid-template-rows: 58px minmax(0, 1fr);
@@ -915,6 +878,17 @@ svg {
   margin: 0;
   color: #2369ff;
   font-size: 14px;
+}
+
+.ai-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-summary-head .icon-button {
+  color: #6b7280;
 }
 
 .ai-summary-card p {

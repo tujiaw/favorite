@@ -34,6 +34,7 @@ export const state = {
   prompts: [],
   aiLoading: false,
   aiSummaryById: {},
+  aiSummaryVisible: false,
   aiSummaryExpanded: false,
   moreMenu: false,
   installPromptEvent: null

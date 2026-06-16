@@ -62,11 +62,8 @@ export function topbarTemplate() {
 
 export function sidebarTemplate() {
   const counts = typeCounts();
-  const activeItems = state.items.filter((item) => !isTrashed(item));
-  const favoriteCount = activeItems.filter((item) => item.favorite).length;
-  const recentCount = activeItems.filter((item) => item.last_used_at).length;
-  const readLaterCount = activeItems.filter((item) => isReadLater(item)).length;
-  const trashCount = state.items.filter((item) => isTrashed(item)).length;
+  const favoriteCount = state.items.filter((item) => item.favorite).length;
+  const recentCount = state.items.filter((item) => item.last_used_at).length;
   const tags = tagCounts();
   if (state.sidebarCollapsed) {
     return `
@@ -88,11 +85,9 @@ export function sidebarTemplate() {
         </div>
         <div class="section-label">收藏管理</div>
         <div class="nav-list">
-          <button class="nav-button ${state.typeFilter === "all" && !state.favoriteOnly && !state.specialFilter ? "active" : ""}" data-type-filter="all">${icons.sparkles()}<span>全部收藏</span><strong>${activeItems.length}</strong></button>
+          <button class="nav-button ${state.typeFilter === "all" && !state.favoriteOnly && !state.specialFilter ? "active" : ""}" data-type-filter="all">${icons.sparkles()}<span>全部收藏</span><strong>${state.items.length}</strong></button>
           <button class="nav-button ${state.specialFilter === "recent" ? "active" : ""}" data-action="recent-filter">${icons.clock()}<span>最近使用</span><strong>${recentCount}</strong></button>
           <button class="nav-button ${state.favoriteOnly ? "active" : ""}" data-action="toggle-favorite-filter">${icons.star()}<span>星标收藏</span><strong>${favoriteCount}</strong></button>
-          <button class="nav-button ${state.specialFilter === "readLater" ? "active" : ""}" data-action="show-read-later">${icons.bookmark()}<span>稍后阅读</span><strong>${readLaterCount}</strong></button>
-          <button class="nav-button ${state.specialFilter === "trash" ? "active" : ""}" data-action="show-trash">${icons.trash()}<span>回收站</span><strong>${trashCount}</strong></button>
         </div>
         <div class="section-label">分类</div>
         <div class="nav-list">
@@ -115,11 +110,6 @@ export function sidebarTemplate() {
               : `<span class="muted-chip">暂无标签</span>`
           }
           ${state.tagFilter ? `<button class="tag-chip clear" data-tag-filter="">清除</button>` : ""}
-        </div>
-        <div class="storage-card">
-          <div><span>存储空间</span><strong>1.2GB / 5GB</strong></div>
-          <div class="storage-meter"><i></i></div>
-          <button class="upgrade-button" data-action="show-storage-tip">升级空间</button>
         </div>
       </section>
     </aside>
@@ -228,7 +218,6 @@ export function itemCardTemplate(item, selected) {
         ${item.domain ? `<span>${escapeHtml(item.domain)}</span>` : ""}
         ${item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => `<span class="meta-tag">${escapeHtml(tag)}</span>`).join("")}
         <span>${date}</span>
-        ${isReadLater(item) ? `<span class="meta-tag">稍后阅读</span>` : ""}
         ${selected && item.type !== "image" && item.type !== "account" ? `<span class="ai-list-action" data-action="refresh-ai-summary">${icons.sparkles()} AI 总结</span>` : ""}
       </div>
     </button>
@@ -302,7 +291,6 @@ export function detailTemplate(item) {
                   <button class="toolbar-button" data-action="toggle-more-menu">${icons.more()} 更多</button>
                   ${state.moreMenu ? `
                     <div class="more-menu">
-                      <button data-action="toggle-read-later">${icons.bookmark()} ${isReadLater(item) ? "取消稍后阅读" : "加入稍后阅读"}</button>
                       <button data-action="duplicate-selected">${icons.copy()} 复制为新收藏</button>
                       <button data-action="export-selected">${icons.external()} 导出文本</button>
                     </div>
@@ -318,10 +306,6 @@ export function detailTemplate(item) {
                   </div>
                 </label>
               </div>
-              <label class="field note-field">
-                <span>备注</span>
-                <input class="input" data-edit="note" value="${escapeAttr(item.note || "")}" placeholder="添加备注" />
-              </label>
               <div class="detail-row">
                 <label class="field">
                   <span>标题</span>
@@ -369,14 +353,13 @@ export function detailTemplate(item) {
               }
             `
         }
-        ${item.type !== "account" ? aiSummaryTemplate(item) : ""}
+        ${item.type !== "account" && state.aiSummaryVisible && state.aiSummaryById[item.id] ? aiSummaryTemplate(item) : ""}
         <div class="detail-actions">
           ${
             item.source_url
               ? `<a class="outline-button" href="${escapeAttr(item.source_url)}" target="_blank" rel="noreferrer">${icons.external()} 打开</a>`
               : `<button class="outline-button" disabled>${icons.eyeOff()} 无链接</button>`
           }
-          ${state.specialFilter === "trash" ? `<button class="outline-button" data-action="restore-selected">${icons.refresh()} 恢复</button>` : ""}
           <button class="danger-button" data-action="delete-selected">${icons.trash()} 删除</button>
         </div>
       </div>
@@ -385,14 +368,18 @@ export function detailTemplate(item) {
 }
 
 function aiSummaryTemplate(item) {
-  const summary = state.aiSummaryById[item.id] || summaryFromItem(item);
+  const summary = state.aiSummaryById[item.id] || "";
   const text = state.aiSummaryExpanded ? summary : truncate(summary, 120);
   return `
     <section class="ai-summary-card">
-      <h3>${icons.sparkles()} AI 总结</h3>
+      <div class="ai-summary-head">
+        <h3>${icons.sparkles()} AI 总结</h3>
+        <button class="icon-button compact" title="关闭 AI 总结" data-action="close-ai-summary">×</button>
+      </div>
       <p>${escapeHtml(text)}</p>
       <div>
         <span>由 AI 生成，可能不完全准确</span>
+        <button class="ghost-button" data-action="apply-ai-summary">${icons.check()} 应用覆盖</button>
         <button class="ghost-button" data-action="copy-ai-summary">${icons.copy()} 复制</button>
         <button class="ghost-button" data-action="toggle-ai-summary">${icons.list()} ${state.aiSummaryExpanded ? "收起" : "展开"}</button>
         <button class="ghost-button" data-action="refresh-ai-summary">${icons.refresh()} 重新生成</button>
@@ -589,7 +576,7 @@ function secretTemplate(secret) {
 
 function typeCounts() {
   return Object.keys(TYPES).reduce((acc, type) => {
-    acc[type] = state.items.filter((item) => item.type === type && !isTrashed(item)).length;
+    acc[type] = state.items.filter((item) => item.type === type).length;
     return acc;
   }, {});
 }
@@ -597,7 +584,6 @@ function typeCounts() {
 function tagCounts() {
   const map = new Map();
   state.items.forEach((item) => {
-    if (isTrashed(item)) return;
     item.tags.filter((tag) => !isSystemTag(tag)).forEach((tag) => map.set(tag, (map.get(tag) || 0) + 1));
   });
   return Array.from(map.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "zh-CN"));
@@ -626,12 +612,4 @@ function truncate(value, size) {
 
 function isSystemTag(tag) {
   return tag === "__read_later" || tag === "__trash";
-}
-
-function isReadLater(item) {
-  return item.tags.includes("__read_later");
-}
-
-function isTrashed(item) {
-  return item.tags.includes("__trash");
 }

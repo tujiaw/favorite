@@ -18,9 +18,7 @@ import {
 import { classifyContent, domainFromUrl, makePreview, titleFromContent, withTimeout } from "./utils.js";
 
 let app;
-const READ_LATER_TAG = "__read_later";
-const TRASH_TAG = "__trash";
-const SUMMARY_KEY = "favorite-ai-summaries";
+const draftSaveTimers = new Map();
 
 export function startApp(rootElement) {
   app = rootElement;
@@ -32,7 +30,6 @@ async function boot() {
   loadVaultPassword();
   state.llmConfig = loadLLMConfig();
   state.prompts = loadPrompts();
-  state.aiSummaryById = loadSummaries();
   captureInstallPrompt();
   render();
   if (new URLSearchParams(window.location.search).get("demo") === "1") {
@@ -100,10 +97,6 @@ function render() {
   const selected = selectedItem();
   const emptyText = state.query.trim()
     ? "没有匹配的收藏，试试换个关键词"
-    : state.specialFilter === "trash"
-    ? "回收站为空"
-    : state.specialFilter === "readLater"
-    ? "没有稍后阅读内容"
     : "还没有收藏，点击“创建”开始";
   app.innerHTML = `
     <main class="app-shell">
@@ -241,25 +234,7 @@ function bindWorkspace() {
     state.specialFilter = null;
     render();
   });
-  document.querySelector("[data-action='show-read-later']")?.addEventListener("click", () => {
-    state.typeFilter = "all";
-    state.favoriteOnly = false;
-    state.tagFilter = null;
-    state.specialFilter = "readLater";
-    render();
-  });
-  document.querySelector("[data-action='show-trash']")?.addEventListener("click", () => {
-    state.typeFilter = "all";
-    state.favoriteOnly = false;
-    state.tagFilter = null;
-    state.specialFilter = "trash";
-    render();
-  });
   document.querySelector("[data-action='new-category']")?.addEventListener("click", addCategoryTag);
-  document.querySelector("[data-action='show-storage-tip']")?.addEventListener("click", () => {
-    state.status = "当前版本使用浏览器本地存储或 Supabase，升级空间需在存储服务中配置。";
-    render();
-  });
   document.querySelector("[data-action='refresh-items']")?.addEventListener("click", async () => {
     await refreshItems(state.selectedId);
     state.status = "收藏列表已刷新";
@@ -352,6 +327,11 @@ function bindDetail() {
   document.querySelector("[data-action='delete-selected']")?.addEventListener("click", deleteSelected);
   document.querySelector("[data-action='toggle-password']")?.addEventListener("click", togglePasswordVisibility);
   document.querySelectorAll("[data-edit]").forEach((field) => {
+    if (field.dataset.edit === "content") {
+      field.addEventListener("input", (event) => {
+        updateContentDraft(event.target.value);
+      });
+    }
     field.addEventListener("change", async (event) => {
       const key = event.target.dataset.edit;
       let value = event.target.value;
@@ -367,7 +347,7 @@ function bindDetail() {
         );
       }
       if (key === "content") {
-        await updateSelected({ content: value, preview: makePreview(value) });
+        await commitContentDraft(value);
         return;
       }
       await updateSelected({ [key]: value });
@@ -380,11 +360,14 @@ function bindDetail() {
     state.moreMenu = !state.moreMenu;
     render();
   });
-  document.querySelector("[data-action='toggle-read-later']")?.addEventListener("click", toggleReadLater);
   document.querySelector("[data-action='duplicate-selected']")?.addEventListener("click", duplicateSelected);
   document.querySelector("[data-action='export-selected']")?.addEventListener("click", exportSelected);
-  document.querySelector("[data-action='restore-selected']")?.addEventListener("click", restoreSelected);
   document.querySelector("[data-action='copy-ai-summary']")?.addEventListener("click", copyAiSummary);
+  document.querySelector("[data-action='apply-ai-summary']")?.addEventListener("click", applyAiSummary);
+  document.querySelector("[data-action='close-ai-summary']")?.addEventListener("click", () => {
+    state.aiSummaryVisible = false;
+    render();
+  });
   document.querySelector("[data-action='toggle-ai-summary']")?.addEventListener("click", () => {
     state.aiSummaryExpanded = !state.aiSummaryExpanded;
     render();
@@ -585,19 +568,45 @@ async function deleteSelected() {
 async function confirmDelete() {
   const item = selectedItem();
   if (!item) return;
-  if (isTrashed(item)) {
-    await deleteFavorite(item.id);
-    delete state.aiSummaryById[item.id];
-    saveSummaries();
-    state.status = "已永久删除收藏";
-  } else {
-    await saveFavorite({ ...item, tags: addTag(item.tags, TRASH_TAG), updated_at: new Date().toISOString() });
-    state.status = "已移入回收站";
-  }
+  await deleteFavorite(item.id);
+  delete state.aiSummaryById[item.id];
   state.deleteConfirm = false;
   state.selectedId = null;
+  state.aiSummaryVisible = false;
+  state.status = "已删除收藏";
   await refreshItems();
   render();
+}
+
+function patchSelectedInMemory(patch) {
+  const item = selectedItem();
+  if (!item) return null;
+  const next = { ...item, ...patch, updated_at: new Date().toISOString() };
+  const index = state.items.findIndex((candidate) => candidate.id === item.id);
+  if (index >= 0) state.items[index] = next;
+  return next;
+}
+
+function updateContentDraft(value) {
+  const next = patchSelectedInMemory({ content: value, preview: makePreview(value) });
+  if (!next) return;
+  window.clearTimeout(draftSaveTimers.get(next.id));
+  draftSaveTimers.set(
+    next.id,
+    window.setTimeout(async () => {
+      await saveFavorite(next);
+      draftSaveTimers.delete(next.id);
+    }, 500)
+  );
+}
+
+async function commitContentDraft(value) {
+  const next = patchSelectedInMemory({ content: value, preview: makePreview(value) });
+  if (!next) return;
+  window.clearTimeout(draftSaveTimers.get(next.id));
+  draftSaveTimers.delete(next.id);
+  await saveFavorite(next);
+  state.status = "内容已保存";
 }
 
 async function createAccount(event) {
@@ -786,10 +795,6 @@ async function copyPassword() {
 function filteredItems() {
   const query = state.query.trim().toLowerCase();
   let filtered = state.items.filter((item) => {
-    const trashed = isTrashed(item);
-    if (state.specialFilter === "trash" && !trashed) return false;
-    if (state.specialFilter !== "trash" && trashed) return false;
-    if (state.specialFilter === "readLater" && !item.tags.includes(READ_LATER_TAG)) return false;
     if (state.specialFilter === "recent" && !item.last_used_at) return false;
     const matchesType = state.typeFilter === "all" || item.type === state.typeFilter;
     const matchesFavorite = !state.favoriteOnly || item.favorite;
@@ -827,27 +832,6 @@ function filteredItems() {
   });
 
   return filtered;
-}
-
-async function toggleReadLater() {
-  const item = selectedItem();
-  if (!item) return;
-  const nextTags = item.tags.includes(READ_LATER_TAG)
-    ? removeTag(item.tags, READ_LATER_TAG)
-    : addTag(item.tags, READ_LATER_TAG);
-  state.moreMenu = false;
-  await updateSelected({ tags: nextTags });
-  state.status = item.tags.includes(READ_LATER_TAG) ? "已取消稍后阅读" : "已加入稍后阅读";
-}
-
-async function restoreSelected() {
-  const item = selectedItem();
-  if (!item) return;
-  await saveFavorite({ ...item, tags: removeTag(item.tags, TRASH_TAG), updated_at: new Date().toISOString() });
-  state.specialFilter = null;
-  state.status = "已从回收站恢复";
-  await refreshItems(item.id);
-  render();
 }
 
 async function duplicateSelected() {
@@ -948,7 +932,7 @@ async function refreshAiSummary() {
       summary = makeLocalSummary(item);
     }
     state.aiSummaryById[item.id] = summary;
-    saveSummaries();
+    state.aiSummaryVisible = true;
     state.aiSummaryExpanded = false;
     state.status = "AI 总结已生成";
   } catch (error) {
@@ -962,9 +946,19 @@ async function refreshAiSummary() {
 async function copyAiSummary() {
   const item = selectedItem();
   if (!item) return;
-  await navigator.clipboard.writeText(state.aiSummaryById[item.id] || makeLocalSummary(item));
+  await navigator.clipboard.writeText(state.aiSummaryById[item.id] || "");
   state.status = "AI 总结已复制";
   render();
+}
+
+async function applyAiSummary() {
+  const item = selectedItem();
+  if (!item) return;
+  const summary = state.aiSummaryById[item.id];
+  if (!summary) return;
+  await updateSelected({ content: summary, preview: makePreview(summary) });
+  state.aiSummaryVisible = false;
+  state.status = "AI 总结已应用到内容";
 }
 
 async function applyMarkdownFormat(format) {
@@ -977,12 +971,11 @@ async function applyMarkdownFormat(format) {
   const selected = textarea.value.slice(start, end) || markdownPlaceholder(format);
   const after = textarea.value.slice(end);
   const replacement = formatMarkdown(format, selected);
-  await updateSelected({ content: `${before}${replacement}${after}`, preview: makePreview(`${before}${replacement}${after}`) });
-  window.requestAnimationFrame(() => {
-    const next = document.querySelector("[data-edit='content']");
-    next?.focus();
-    next?.setSelectionRange(start, start + replacement.length);
-  });
+  const nextValue = `${before}${replacement}${after}`;
+  textarea.setRangeText(replacement, start, end, "select");
+  updateContentDraft(nextValue);
+  textarea.focus();
+  textarea.setSelectionRange(start, start + replacement.length);
 }
 
 function sortLabel() {
@@ -995,16 +988,8 @@ function addTag(tags, tag) {
   return Array.from(new Set([...(tags || []), tag].filter(Boolean)));
 }
 
-function removeTag(tags, tag) {
-  return (tags || []).filter((candidate) => candidate !== tag);
-}
-
 function isSystemTag(tag) {
-  return tag === READ_LATER_TAG || tag === TRASH_TAG;
-}
-
-function isTrashed(item) {
-  return item.tags.includes(TRASH_TAG);
+  return tag === "__read_later" || tag === "__trash";
 }
 
 function safeFilename(value) {
@@ -1053,18 +1038,6 @@ function makeLocalSummary(item) {
   if (!plain) return "这条收藏暂无可总结内容。";
   const firstSentence = plain.split(/[。！？.!?]/).find(Boolean) || plain;
   return firstSentence.length > 160 ? `${firstSentence.slice(0, 160)}...` : firstSentence;
-}
-
-function loadSummaries() {
-  try {
-    return JSON.parse(localStorage.getItem(SUMMARY_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function saveSummaries() {
-  localStorage.setItem(SUMMARY_KEY, JSON.stringify(state.aiSummaryById));
 }
 
 function selectedItem() {
