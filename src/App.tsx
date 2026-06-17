@@ -33,6 +33,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -50,8 +60,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { loadLLMConfig, loadPrompts, runPrompt, saveLLMConfig, savePrompts } from "./ai.js";
 import { decryptSecret, encryptSecret } from "./crypto.js";
@@ -593,7 +605,7 @@ export function App() {
   }
 
   if (!booted || isLoadingAuth) {
-    return <main className="login-screen"><p className="status">正在连接 GitHub 登录...</p></main>;
+    return <main className="grid min-h-full place-items-center bg-background text-muted-foreground">正在连接 GitHub 登录...</main>;
   }
 
   if (!user) {
@@ -601,7 +613,8 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
+    <TooltipProvider>
+    <main className="grid h-full grid-rows-[64px_minmax(0,1fr)] bg-background text-foreground">
       <Topbar
         user={user}
         query={query}
@@ -623,7 +636,7 @@ export function App() {
         onPromptInstall={promptInstall}
         onSignOut={signOut}
       />
-      <div className={`workspace ${sidebarCollapsed ? "sidebar-is-collapsed" : ""}`}>
+      <div className={sidebarCollapsed ? "grid min-h-0 grid-cols-[72px_minmax(0,1fr)_minmax(360px,520px)]" : "grid min-h-0 grid-cols-[260px_minmax(360px,440px)_minmax(0,1fr)]"}>
         <Sidebar
           collapsed={sidebarCollapsed}
           items={items}
@@ -661,11 +674,11 @@ export function App() {
             setSpecialFilter(null);
           }}
         />
-        <section className="content">
-          <div className="conversation-panel">
-            <div className="conversation-head">
-              <h2>全部收藏 <span>{filteredItems.length}</span></h2>
-              <div className="conversation-tools">
+        <section className="min-h-0 border-r bg-background">
+          <Card className="flex h-full flex-col rounded-none border-0 border-r bg-card shadow-none">
+            <CardHeader className="flex-row items-center justify-between space-y-0 border-b p-4">
+              <CardTitle className="text-base">全部收藏 <span className="text-sm text-muted-foreground">{filteredItems.length}</span></CardTitle>
+              <div className="flex items-center gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm">{sortLabel(sortMode)} <Chevron /></Button>
@@ -687,9 +700,9 @@ export function App() {
                 <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" title="列表视图" onClick={() => setViewMode("list")}><List /></Button>
                 <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 /></Button>
               </div>
-            </div>
-            <div className="conversation-body">
-              <div className={`item-list ${viewMode === "grid" ? "item-grid" : ""}`}>
+            </CardHeader>
+            <ScrollArea className="min-h-0 flex-1">
+              <div className={viewMode === "grid" ? "grid gap-3 p-3 sm:grid-cols-2" : "grid gap-2 p-3"}>
                 {filteredItems.length ? filteredItems.map((item) => (
                   <ItemCard
                     item={item}
@@ -711,10 +724,10 @@ export function App() {
                       }
                     }}
                   />
-                )) : <div className="empty-list">{query.trim() ? "没有匹配的收藏，试试换个关键词" : "还没有收藏，点击“创建”开始"}</div>}
+                )) : <Card className="p-6 text-center text-sm text-muted-foreground">{query.trim() ? "没有匹配的收藏，试试换个关键词" : "还没有收藏，点击“创建”开始"}</Card>}
               </div>
-            </div>
-          </div>
+            </ScrollArea>
+          </Card>
         </section>
         <DetailPanel
           item={selectedItem}
@@ -753,7 +766,7 @@ export function App() {
           onOpen={(url) => window.open(url, "_blank", "noreferrer")}
         />
       </div>
-      <p className="notebook-note">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
+      <p className="fixed bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
       {createModal ? (
         <CreateModal
           modalTab={modalTab}
@@ -807,26 +820,29 @@ export function App() {
           onDeletePrompt={deletePromptRow}
         />
       ) : null}
-      {status ? <p className="status-toast">{status}</p> : null}
+      {status ? <Card className="fixed bottom-3 right-4 z-50 px-3 py-2 text-xs text-muted-foreground shadow-md">{status}</Card> : null}
     </main>
+    </TooltipProvider>
   );
 }
 
 function LoginScreen({ onSignIn }: { onSignIn: (provider: string) => void }) {
   return (
-    <main className="login-screen">
-      <section className="login-card">
-        <div className="brand">
-          <div className="brand-mark"><Archive /></div>
+    <main className="grid min-h-full place-items-center bg-background p-6">
+      <Card className="w-full max-w-md">
+        <CardContent className="grid gap-6 p-6">
+        <div className="flex items-center gap-3">
+          <div className="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground"><Archive /></div>
           <div>
-            <h1 className="brand-title">个人收藏中心</h1>
-            <p className="brand-subtitle">登录后同步你的资料、图片和账号保险箱</p>
+            <h1 className="text-lg font-semibold">个人收藏中心</h1>
+            <p className="text-sm text-muted-foreground">登录后同步你的资料、图片和账号保险箱</p>
           </div>
         </div>
-        <div className="login-actions">
+        <div className="flex justify-end">
           <Button variant="outline" onClick={() => onSignIn("github")}>GitHub 登录</Button>
         </div>
-      </section>
+        </CardContent>
+      </Card>
     </main>
   );
 }
@@ -848,34 +864,51 @@ function Topbar(props: {
 }) {
   const subtitle = props.user.email || "本地演示模式";
   return (
-    <header className="topbar">
-      <div className="topbar-inner">
-        <div className="brand">
-          <div className="brand-mark"><Archive /></div>
+    <header className="relative z-20 border-b bg-background/90 backdrop-blur">
+      <div className="grid h-16 grid-cols-[240px_minmax(260px,520px)_1fr_auto] items-center gap-3 px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Archive /></div>
           <div>
-            <h1 className="brand-title">个人收藏夹</h1>
-            <p className="brand-subtitle">{subtitle}</p>
+            <h1 className="truncate text-sm font-semibold">个人收藏夹</h1>
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
-        <label className="global-search">
-          <Search />
+        <label className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-background px-3 text-muted-foreground">
+          <Search className="size-4" />
           <Input placeholder="搜索收藏内容、标签、URL" value={props.query} onChange={(event) => props.onQuery(event.target.value)} />
-          <kbd>⌘ K</kbd>
+          <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[11px]">⌘ K</kbd>
         </label>
-        <div className="topbar-actions">
-          <Button className="create-notebook" onClick={props.onCreate}><Plus /> 收藏 <span className="button-divider"></span><Chevron /></Button>
-          {props.installPromptEvent ? <Button variant="outline" className="install-button" onClick={props.onPromptInstall} title="安装到本地"><Grid3X3 /> 安装</Button> : null}
-          <Button variant="secondary" className="ai-top-button" onClick={props.onSettings}><Sparkles /> AI 智能整理</Button>
-          <Button variant="ghost" size="icon" title="刷新同步" onClick={props.onRefresh}><RefreshCw /></Button>
-          <Button variant={props.hasVault ? "secondary" : "ghost"} size="icon" title="保险箱" onClick={props.onOpenVault}><ShieldCheck /></Button>
-          <Button variant="ghost" size="icon" title="分享当前收藏" onClick={props.onShare}><Upload /></Button>
-          <Button variant="ghost" size="icon" title="快捷操作" onClick={props.onMenu}><Grid3X3 /></Button>
+        <div className="flex min-w-0 items-center justify-end gap-2">
+          <Button onClick={props.onCreate}><Plus /> 收藏</Button>
+          {props.installPromptEvent ? <Button variant="outline" onClick={props.onPromptInstall}><Grid3X3 /> 安装</Button> : null}
+          <Button variant="secondary" onClick={props.onSettings}><Sparkles /> AI 智能整理</Button>
+          <IconButtonWithTooltip label="刷新同步" onClick={props.onRefresh}><RefreshCw /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="保险箱" variant={props.hasVault ? "secondary" : "ghost"} onClick={props.onOpenVault}><ShieldCheck /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="分享当前收藏" onClick={props.onShare}><Upload /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="快捷操作" onClick={props.onMenu}><Grid3X3 /></IconButtonWithTooltip>
           <ThemeToggle />
-          <span className="avatar" title={subtitle}>{(props.user.name || props.user.email || "用").slice(0, 1)}</span>
+          <Badge variant="secondary" className="grid size-8 place-items-center rounded-full p-0" title={subtitle}>{(props.user.name || props.user.email || "用").slice(0, 1)}</Badge>
         </div>
-        <Button variant="ghost" size="icon" title="退出登录" onClick={props.onSignOut}><LogOut /></Button>
+        <IconButtonWithTooltip label="退出登录" onClick={props.onSignOut}><LogOut /></IconButtonWithTooltip>
       </div>
     </header>
+  );
+}
+
+function IconButtonWithTooltip({
+  label,
+  children,
+  ...props
+}: React.ComponentProps<typeof Button> & { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button size="icon" variant="ghost" aria-label={label} {...props}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -897,12 +930,12 @@ function Sidebar(props: {
 }) {
   if (props.collapsed) {
     return (
-      <aside className="sidebar sidebar-collapsed">
-        <section className="sources-panel collapsed-panel">
-          <Button variant="ghost" size="icon" title="展开分类" onClick={props.onToggle}><PanelLeft /></Button>
-          <Button variant="ghost" size="icon" title="搜索" onClick={props.onToggle}><Search /></Button>
-          <Button variant="ghost" size="icon" title="分类" onClick={props.onToggle}><Sparkles /></Button>
-        </section>
+      <aside className="min-h-0 border-r bg-card p-3">
+        <Card className="flex h-full flex-col items-center gap-2 border-0 bg-transparent shadow-none">
+          <IconButtonWithTooltip label="展开分类" onClick={props.onToggle}><PanelLeft /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="搜索" onClick={props.onToggle}><Search /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="分类" onClick={props.onToggle}><Sparkles /></IconButtonWithTooltip>
+        </Card>
       </aside>
     );
   }
@@ -910,39 +943,44 @@ function Sidebar(props: {
   const recentCount = props.items.filter((item) => item.last_used_at).length;
   const activeOverview = !props.specialFilter && props.typeFilter === "all" && !props.favoriteOnly && !props.tagFilter;
   return (
-    <aside className="sidebar">
-      <section className="sources-panel">
-        <div className="nav-list">
-          <Button variant={activeOverview ? "secondary" : "ghost"} className="nav-button overview-button" onClick={props.onOverview}><HomeIcon /><span>概览</span></Button>
+    <aside className="min-h-0 border-r bg-card">
+      <ScrollArea className="h-full">
+        <Card className="grid gap-4 rounded-none border-0 bg-transparent p-3 shadow-none">
+        <div className="grid gap-1">
+          <Button variant={activeOverview ? "secondary" : "ghost"} className="justify-start" onClick={props.onOverview}><HomeIcon /><span>概览</span></Button>
         </div>
-        <div className="section-label">收藏管理</div>
-        <div className="nav-list">
-          <Button variant={props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="nav-button" onClick={() => props.onType("all")}><Sparkles /><span>全部收藏</span><strong>{props.items.length}</strong></Button>
-          <Button variant={props.specialFilter === "recent" ? "secondary" : "ghost"} className="nav-button" onClick={props.onRecent}><Clock /><span>最近使用</span><strong>{recentCount}</strong></Button>
-          <Button variant={props.favoriteOnly ? "secondary" : "ghost"} className="nav-button" onClick={props.onFavorite}><Star /><span>星标收藏</span><strong>{favoriteCount}</strong></Button>
+        <Separator />
+        <div className="grid gap-2">
+          <p className="px-2 text-xs font-medium text-muted-foreground">收藏管理</p>
+          <Button variant={props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="justify-between" onClick={() => props.onType("all")}><span className="inline-flex items-center gap-2"><Sparkles />全部收藏</span><strong>{props.items.length}</strong></Button>
+          <Button variant={props.specialFilter === "recent" ? "secondary" : "ghost"} className="justify-between" onClick={props.onRecent}><span className="inline-flex items-center gap-2"><Clock />最近使用</span><strong>{recentCount}</strong></Button>
+          <Button variant={props.favoriteOnly ? "secondary" : "ghost"} className="justify-between" onClick={props.onFavorite}><span className="inline-flex items-center gap-2"><Star />星标收藏</span><strong>{favoriteCount}</strong></Button>
         </div>
-        <div className="section-label">分类</div>
-        <div className="nav-list">
+        <div className="grid gap-2">
+          <p className="px-2 text-xs font-medium text-muted-foreground">分类</p>
           {(["link", "text", "image", "code", "json"] as FavoriteType[]).map((type) => {
             const Icon = type === "link" ? Tag : TYPE_META[type].icon;
             return (
-              <Button variant={props.typeFilter === type ? "secondary" : "ghost"} className="nav-button" key={type} onClick={() => props.onType(type)}>
-                <Icon /><span>{categoryLabel(type)}</span><strong>{props.typeCounts[type] || 0}</strong>
+              <Button variant={props.typeFilter === type ? "secondary" : "ghost"} className="justify-between" key={type} onClick={() => props.onType(type)}>
+                <span className="inline-flex items-center gap-2"><Icon />{categoryLabel(type)}</span><strong>{props.typeCounts[type] || 0}</strong>
               </Button>
             );
           })}
-          <Button variant="ghost" className="nav-button nav-action" onClick={() => window.alert("新分类将在下一阶段迁移为可编辑标签管理")}><Plus /><span>新建分类</span></Button>
+          <Button variant="ghost" className="justify-start" onClick={() => window.alert("新分类将在下一阶段迁移为可编辑标签管理")}><Plus /><span>新建分类</span></Button>
         </div>
-        <div className="section-label">标签</div>
-        <div className="tag-cloud">
+        <div className="grid gap-2">
+          <p className="px-2 text-xs font-medium text-muted-foreground">标签</p>
+          <div className="flex flex-wrap gap-2">
           {props.tags.length ? props.tags.slice(0, 8).map(([tag, count]) => (
-            <Badge asChild variant={props.tagFilter === tag ? "default" : "secondary"} key={tag}>
-              <button onClick={() => props.onTag(tag)}>{tag} <strong>{count}</strong></button>
-            </Badge>
-          )) : <span className="muted-chip">暂无标签</span>}
+            <Button variant={props.tagFilter === tag ? "default" : "secondary"} size="sm" key={tag} onClick={() => props.onTag(tag)}>
+              {tag} <strong>{count}</strong>
+            </Button>
+          )) : <Badge variant="outline">暂无标签</Badge>}
           {props.tagFilter ? <Button variant="ghost" size="sm" onClick={() => props.onTag(null)}>清除</Button> : null}
+          </div>
         </div>
-      </section>
+        </Card>
+      </ScrollArea>
     </aside>
   );
 }
@@ -950,25 +988,27 @@ function Sidebar(props: {
 function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: boolean; onSelect: () => void }) {
   const Icon = TYPE_META[item.type]?.icon || FileText;
   return (
-    <Card asChild className={`item-card ${selected ? "selected" : ""}`}>
-      <button onClick={onSelect}>
-      <div className="item-main">
-        <div className="item-title-row">
-          <Badge variant="secondary" className={`type-badge type-${item.type}`}><Icon /></Badge>
+    <Button variant="ghost" className="h-auto w-full p-0 text-left" onClick={onSelect}>
+      <Card className={selected ? "w-full border-primary ring-1 ring-primary" : "w-full"}>
+      <CardContent className="grid gap-3 p-3">
+      <div className="flex w-full items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          <Badge variant="secondary" className="grid size-8 shrink-0 place-items-center p-0"><Icon /></Badge>
           <div className="min-w-0">
-            <h2 className="item-title">{item.title} <span className="inline-type">{TYPE_META[item.type].label}</span></h2>
-            <p className="item-preview">{item.preview || item.content}</p>
+            <h2 className="truncate text-sm font-medium">{item.title} <span className="ml-1 text-xs text-muted-foreground">{TYPE_META[item.type].label}</span></h2>
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.preview || item.content}</p>
           </div>
         </div>
-        {item.favorite ? <span className="favorite-star"><Star fill="currentColor" /></span> : null}
+        {item.favorite ? <Star className="size-4 shrink-0 text-primary" fill="currentColor" /> : null}
       </div>
-      <div className="meta-row">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         {item.domain ? <span>{item.domain}</span> : null}
-        {item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => <span className="meta-tag" key={tag}>{tag}</span>)}
+        {item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => <Badge variant="outline" key={tag}>{tag}</Badge>)}
         <span>{formatListDate(item.last_used_at || item.created_at)}</span>
       </div>
-      </button>
-    </Card>
+      </CardContent>
+      </Card>
+    </Button>
   );
 }
 
@@ -1010,60 +1050,62 @@ function DetailPanel(props: {
 }) {
   if (!props.item) {
     return (
-      <aside className="detail-panel">
-        <div className="detail-scroll">
-          <Button className="add-note-button" onClick={props.onCreate}><FileText /> 创建收藏</Button>
-          <div className="detail-empty"><Eye /><p>选择一条收藏查看详情</p></div>
-        </div>
+      <aside className="min-h-0 bg-background">
+        <ScrollArea className="h-full">
+          <Card className="m-4 grid min-h-[320px] place-items-center gap-4 p-6 text-center">
+            <Eye className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">选择一条收藏查看详情</p>
+            <Button onClick={props.onCreate}><FileText /> 创建收藏</Button>
+          </Card>
+        </ScrollArea>
       </aside>
     );
   }
   const item = props.item;
   if (item.type === "account") {
     return (
-      <aside className="detail-panel">
-        <div className="detail-scroll">
-          <Card className="vault-box">
-            <div className="vault-title">
+      <aside className="min-h-0 bg-background">
+        <ScrollArea className="h-full">
+          <Card className="m-4 p-4">
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
               <KeyRound /> {item.title}
               <Button variant="ghost" size="icon" style={{ marginLeft: "auto" }} onClick={props.onFavorite}><Heart fill={item.favorite ? "currentColor" : "none"} /></Button>
             </div>
-            <div className="account-fields">
-              <div className="account-field account-url-field">
-                <Label className="field-label">网址</Label>
-                <div className="account-url-control">
-                  <Input className="field-value-input" value={item.source_url || ""} readOnly />
+            <div className="grid gap-3">
+              <div className="grid gap-2">
+                <Label>网址</Label>
+                <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
+                  <Input value={item.source_url || ""} readOnly />
                   <Button variant="outline" size="icon" disabled={!item.source_url} onClick={() => item.source_url && props.onOpen(item.source_url)}><ExternalLink /></Button>
                 </div>
               </div>
-              <div className="account-field">
-                <Label className="field-label">用户名</Label>
-                <Input className="field-value-input" value={item.content} readOnly />
+              <div className="grid gap-2">
+                <Label>用户名</Label>
+                <Input value={item.content} readOnly />
               </div>
               {item.encrypted_secret ? (
-                <div className="account-field">
-                  <Label className="field-label">密码</Label>
-                  <div className="password-field">
-                    <Input className="password-input" type={props.passwordVisible ? "text" : "password"} value={props.revealedSecret?.password || "••••••••"} readOnly />
+                <div className="grid gap-2">
+                  <Label>密码</Label>
+                  <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
+                    <Input type={props.passwordVisible ? "text" : "password"} value={props.revealedSecret?.password || "••••••••"} readOnly />
                     <Button variant="ghost" size="icon" onClick={props.onTogglePassword}>{props.passwordVisible ? <EyeOff /> : <Eye />}</Button>
                   </div>
                 </div>
               ) : null}
             </div>
           </Card>
-        </div>
+        </ScrollArea>
       </aside>
     );
   }
   return (
-    <aside className="detail-panel">
-      <div className="detail-scroll">
-        <div className="document-head">
-          <div className="document-title-wrap">
-            <Input className="document-title-input" value={item.title} onChange={(event) => props.onTitle(event.target.value)} aria-label="标题" />
-          </div>
-          <div className="more-wrap">
-            <Button variant="outline" className="doc-head-button" onClick={props.onFavorite}><Star fill={item.favorite ? "currentColor" : "none"} /> 收藏</Button>
+    <aside className="min-h-0 bg-background">
+      <ScrollArea className="h-full">
+        <div className="grid gap-4 p-4">
+        <div className="flex items-start gap-3">
+          <Input className="h-12 flex-1 border-0 px-0 text-xl font-semibold shadow-none focus-visible:ring-0" value={item.title} onChange={(event) => props.onTitle(event.target.value)} aria-label="标题" />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={props.onFavorite}><Star fill={item.favorite ? "currentColor" : "none"} /> 收藏</Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon"><MoreVertical /></Button>
@@ -1074,11 +1116,12 @@ function DetailPanel(props: {
                 <DropdownMenuItem onClick={props.onDelete} className="text-destructive"><Trash2 /> 删除</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
         </div>
-        <div className="document-tags-row">
+        </div>
+        <div className="grid gap-3 rounded-lg border bg-card p-3">
+          <div className="flex flex-wrap items-center gap-2">
           <Select value={item.type} onValueChange={(value) => props.onType(value as FavoriteType)}>
-            <SelectTrigger className="detail-type-select" aria-label="类型">
+            <SelectTrigger className="w-32" aria-label="类型">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1087,14 +1130,15 @@ function DetailPanel(props: {
               ))}
             </SelectContent>
           </Select>
-          <div className="editable-tags">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => (
-              <Badge variant="secondary" className="meta-pill tag-edit-chip" key={tag}>
+              <Badge variant="secondary" className="gap-1" key={tag}>
                 {tag}
-                <button type="button" title={`移除标签 ${tag}`} onClick={() => props.onRemoveTag(tag)}>×</button>
+                <Button variant="ghost" size="sm" className="h-4 px-1" type="button" title={`移除标签 ${tag}`} onClick={() => props.onRemoveTag(tag)}>×</Button>
               </Badge>
             ))}
             <Input
+              className="h-8 w-32"
               placeholder="+ 添加标签"
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === "," || event.key === "，") {
@@ -1109,14 +1153,15 @@ function DetailPanel(props: {
               }}
             />
           </div>
-          <div className="detail-toolbar document-tag-actions">
-            <Button variant="outline" className="toolbar-button" onClick={props.onToggleEdit}><Eye /> {props.contentEditing ? "预览" : "编辑"}</Button>
-            <Button variant="outline" className="toolbar-button" onClick={props.onCopy}><Copy /> 复制</Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={props.onToggleEdit}><Eye /> {props.contentEditing ? "预览" : "编辑"}</Button>
+            <Button variant="outline" onClick={props.onCopy}><Copy /> 复制</Button>
             {item.type !== "image" ? (
-              <div className="editor-ai-menu">
+              <div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="toolbar-button ai-button"><Sparkles /> AI <Chevron /></Button>
+                    <Button variant="outline"><Sparkles /> AI <Chevron /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={props.onRefreshAiSummary} disabled={props.aiLoading}>
@@ -1131,38 +1176,38 @@ function DetailPanel(props: {
                 </DropdownMenu>
               </div>
             ) : null}
-            {item.source_url ? <Button asChild variant="outline" className="toolbar-button"><a href={item.source_url} target="_blank" rel="noreferrer"><ExternalLink /> 打开</a></Button> : null}
+            {item.source_url ? <Button asChild variant="outline"><a href={item.source_url} target="_blank" rel="noreferrer"><ExternalLink /> 打开</a></Button> : null}
           </div>
         </div>
-        <div className="document-meta-row">
-          <span><FileText /> 创建于 {formatDetailDate(item.created_at)}</span>
-          <span><Clock /> 更新于 {formatDetailDate(item.updated_at || item.created_at)}</span>
-          <span><ShieldCheck /> {item.encrypted_secret ? "已加密" : "未加密"}</span>
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1"><FileText className="size-3" /> 创建于 {formatDetailDate(item.created_at)}</span>
+          <span className="inline-flex items-center gap-1"><Clock className="size-3" /> 更新于 {formatDetailDate(item.updated_at || item.created_at)}</span>
+          <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3" /> {item.encrypted_secret ? "已加密" : "未加密"}</span>
         </div>
         {item.type === "image" ? (
-          <div className="image-preview"><img src={item.content} alt={item.title} /></div>
+          <Card className="grid min-h-[280px] place-items-center overflow-hidden bg-muted p-3"><img className="max-h-[420px] max-w-full object-contain" src={item.content} alt={item.title} /></Card>
         ) : props.contentEditing ? (
-          <div className="editor-card">
-            <Textarea className="textarea" value={item.content} onChange={(event) => props.onContentDraft(event.target.value)} onBlur={(event) => props.onContentCommit(event.target.value)} />
-          </div>
+          <Card className="p-3">
+            <Textarea className="min-h-[420px] border-0 font-mono shadow-none focus-visible:ring-0" value={item.content} onChange={(event) => props.onContentDraft(event.target.value)} onBlur={(event) => props.onContentCommit(event.target.value)} />
+          </Card>
         ) : (
-          <div className="document-preview-card">
-            <article className="markdown-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.content) }} />
-          </div>
+          <Card className="p-5">
+            <article className="grid gap-3 whitespace-pre-wrap text-sm leading-7 text-foreground [&_a]:text-primary [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.content) }} />
+          </Card>
         )}
-        <div className="document-footer">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>共 {String(item.content || "").trim().length} 字</span>
-          <span><Check /> 自动保存成功</span>
+          <span className="inline-flex items-center gap-1"><Check className="size-3" /> 自动保存成功</span>
         </div>
         {props.aiSummaryVisible && props.aiSummary ? (
-          <Card className="ai-summary-card">
-            <div className="ai-summary-head">
-              <h3><Sparkles /> AI 总结</h3>
+          <Card className="grid gap-3 p-4">
+            <div className="flex items-center gap-2">
+              <h3 className="inline-flex items-center gap-2 text-sm font-semibold"><Sparkles /> AI 总结</h3>
               <Button variant="ghost" size="icon" title="关闭 AI 总结" onClick={props.onCloseAiSummary}>×</Button>
             </div>
-            <p>{props.aiSummaryExpanded ? props.aiSummary : truncate(props.aiSummary, 120)}</p>
-            <div>
-              <span>由 AI 生成，可能不完全准确</span>
+            <p className="text-sm text-muted-foreground">{props.aiSummaryExpanded ? props.aiSummary : truncate(props.aiSummary, 120)}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">由 AI 生成，可能不完全准确</span>
               <Button variant="ghost" size="sm" onClick={props.onApplyAiSummary}><Check /> 应用覆盖</Button>
               <Button variant="ghost" size="sm" onClick={props.onCopyAiSummary}><Copy /> 复制</Button>
               <Button variant="ghost" size="sm" onClick={props.onToggleAiSummary}><List /> {props.aiSummaryExpanded ? "收起" : "展开"}</Button>
@@ -1170,7 +1215,8 @@ function DetailPanel(props: {
             </div>
           </Card>
         ) : null}
-      </div>
+        </div>
+      </ScrollArea>
     </aside>
   );
 }
@@ -1193,7 +1239,7 @@ function CreateModal(props: {
   const isFavorite = props.modalTab === "favorite";
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
-      <DialogContent className="create-modal max-w-2xl">
+      <DialogContent className="max-w-2xl">
         <Tabs value={props.modalTab} onValueChange={(value) => props.onTab(value as ModalTab)}>
           <DialogHeader>
             <TabsList>
@@ -1203,7 +1249,7 @@ function CreateModal(props: {
           </DialogHeader>
           <TabsContent value="favorite">
             <Textarea
-              className="textarea quick-input"
+              className="min-h-[240px]"
               placeholder="粘贴 URL、文本、代码、JSON，或直接粘贴图片。按 Ctrl/⌘ + Enter 保存。"
               value={props.quickInput}
               onChange={(event) => props.onQuickInput(event.target.value)}
@@ -1212,29 +1258,29 @@ function CreateModal(props: {
               }}
               onPaste={props.onPaste}
             />
-            <div className="composer-actions source-modal-actions">
-              <p className="status">{props.status}</p>
-              <input className="hidden" type="file" accept="image/*" ref={props.fileInputRef} onChange={(event) => props.onImage(event.target.files?.[0])} />
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">{props.status}</p>
+              <Input className="hidden" type="file" accept="image/*" ref={props.fileInputRef} onChange={(event) => props.onImage(event.target.files?.[0])} />
               <Button variant="ghost" size="icon" title="添加图片" onClick={() => props.fileInputRef.current?.click()}><Image /></Button>
               <Button onClick={props.onSaveQuick}><Plus /> 保存</Button>
             </div>
           </TabsContent>
           <TabsContent value="account">
             {!props.hasVaultPassword ? (
-              <Card className="vault-notice p-4">
+              <Card className="flex items-center justify-between gap-3 p-4">
                 <p>请先在右上角设置保险箱主密码</p>
                 <Button variant="outline" size="icon" onClick={props.onOpenVault}><ShieldCheck /></Button>
               </Card>
             ) : (
               <form onSubmit={props.onCreateAccount}>
-                <div className="account-form">
+                <div className="grid gap-3">
                   <Input name="url" placeholder="URL" />
                   <Input name="username" placeholder="用户名" />
                   <Input name="password" placeholder="密码" type="password" required />
                   <Textarea name="note" placeholder="备注，可选" rows={2}></Textarea>
                 </div>
                 <DialogFooter className="mt-4">
-                  <span className="status mr-auto">敏感字段加密保存</span>
+                  <span className="mr-auto text-sm text-muted-foreground">敏感字段加密保存</span>
                   <Button type="submit"><ShieldCheck /> 加密保存</Button>
                 </DialogFooter>
               </form>
@@ -1254,23 +1300,23 @@ function VaultModal({ expiresAt, onClose, onSubmit, onClear }: {
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="vault-modal">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>保险箱设置</DialogTitle>
           <DialogDescription>设置主密码后，账号密码将被加密保存</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit}>
         {expiresAt ? (
-          <Card className="vault-status">
-            <div className="vault-status-icon"><ShieldCheck /></div>
-            <div className="vault-status-copy">
+          <Card className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 p-3">
+            <div className="grid size-9 place-items-center rounded-md bg-primary/10 text-primary"><ShieldCheck /></div>
+            <div className="grid gap-1">
               <strong>保险箱已启用</strong>
-              <span>有效期至 {new Date(expiresAt).toLocaleString("zh-CN")}</span>
+              <span className="text-sm text-muted-foreground">有效期至 {new Date(expiresAt).toLocaleString("zh-CN")}</span>
             </div>
             <Button variant="destructive" type="button" onClick={onClear}><Trash2 /> 清除</Button>
           </Card>
         ) : (
-          <div className="vault-form">
+          <div className="grid gap-3">
             <Input name="vaultPassword" placeholder="设置主密码，至少 8 位" type="password" required minLength={8} />
             <Input name="confirmPassword" placeholder="确认主密码" type="password" required minLength={8} />
             <Select name="expireTime" defaultValue="3600000">
@@ -1288,7 +1334,7 @@ function VaultModal({ expiresAt, onClose, onSubmit, onClear }: {
           </div>
         )}
         <DialogFooter className="mt-4">
-          <span className="status">主密码仅保存在浏览器本地</span>
+          <span className="mr-auto text-sm text-muted-foreground">主密码仅保存在浏览器本地</span>
           {expiresAt ? <Button variant="outline" type="button" onClick={onClose}>关闭</Button> : <Button type="submit"><Check /> 确认设置</Button>}
         </DialogFooter>
         </form>
@@ -1299,19 +1345,20 @@ function VaultModal({ expiresAt, onClose, onSubmit, onClear }: {
 
 function ConfirmModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="confirm-modal">
-        <DialogHeader>
-          <DialogTitle>确认删除</DialogTitle>
-          <DialogDescription>此操作无法撤销</DialogDescription>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">确定要删除这条收藏吗？</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>取消</Button>
-          <Button variant="destructive" onClick={onConfirm}><Trash2 /> 确认删除</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <AlertDialog open onOpenChange={(open) => !open && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>确认删除</AlertDialogTitle>
+          <AlertDialogDescription>此操作无法撤销。确定要删除这条收藏吗？</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>取消</AlertDialogCancel>
+          <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>
+            <Trash2 /> 确认删除
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -1326,40 +1373,40 @@ function SettingsModal({ config, prompts, status, onClose, onSubmit, onAddPrompt
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="settings-modal max-w-3xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
           <DialogDescription>配置大模型与提示词，所有信息仅保存在浏览器本地</DialogDescription>
         </DialogHeader>
       <form onSubmit={onSubmit}>
-        <div className="settings-section">
-          <h3 className="settings-section-title">大模型配置</h3>
-          <div className="settings-grid">
-            <Label className="settings-field span-2">
+        <div className="grid gap-3">
+          <h3 className="text-sm font-semibold">大模型配置</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Label className="grid gap-2 sm:col-span-2">
               <span>Base URL</span>
               <Input name="baseUrl" placeholder="https://api.openai.com/v1" defaultValue={config.baseUrl} />
             </Label>
-            <Label className="settings-field">
+            <Label className="grid gap-2">
               <span>模型</span>
               <Input name="model" placeholder="gpt-4o-mini" defaultValue={config.model} />
             </Label>
-            <Label className="settings-field span-2">
+            <Label className="grid gap-2 sm:col-span-2">
               <span>API Key</span>
               <Input name="apiKey" type="password" placeholder="sk-..." defaultValue={config.apiKey} />
             </Label>
           </div>
-          <p className="settings-hint">兼容 OpenAI 接口格式，自动拼接 <code>/chat/completions</code>。</p>
+          <p className="text-xs text-muted-foreground">兼容 OpenAI 接口格式，自动拼接 <code>/chat/completions</code>。</p>
         </div>
         <Separator className="my-4" />
-        <div className="settings-section">
-          <div className="settings-section-head">
-            <h3 className="settings-section-title">提示词</h3>
+        <div className="grid gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold">提示词</h3>
             <Button variant="outline" size="sm" type="button" onClick={onAddPrompt}><Plus /> 新增</Button>
           </div>
-          <div className="prompt-list">
+          <div className="grid max-h-[320px] gap-3 overflow-auto pr-1">
             {prompts.map((prompt) => (
-              <Card className="prompt-item" key={prompt.id}>
-                <div className="prompt-item-head">
+              <Card className="grid gap-3 p-3" key={prompt.id}>
+                <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
                   <Input name={`prompt-name-${prompt.id}`} defaultValue={prompt.name} placeholder="提示词名称" />
                   <Button variant="ghost" size="icon" type="button" onClick={() => onDeletePrompt(prompt.id)} title="删除"><Trash2 /></Button>
                 </div>
@@ -1369,7 +1416,7 @@ function SettingsModal({ config, prompts, status, onClose, onSubmit, onAddPrompt
           </div>
         </div>
         <DialogFooter className="mt-4">
-          <span className="status">{status}</span>
+          <span className="mr-auto text-sm text-muted-foreground">{status}</span>
           <Button type="button" variant="ghost" onClick={onClose}>取消</Button>
           <Button type="submit"><Check /> 保存</Button>
         </DialogFooter>

@@ -11,7 +11,6 @@ const requiredFiles = [
   "src/constants.js",
   "src/icons.js",
   "src/styles.css",
-  "styles.css",
   "config.js",
   "vite.config.ts",
   "tsconfig.json",

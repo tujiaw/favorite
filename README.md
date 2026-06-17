@@ -76,15 +76,15 @@ npm run build
 
 ## UI 与主题
 
-- shadcn/ui 组件位于 `src/components/ui/`，包括 Button、Input、Textarea、Dialog、Select、Tabs、Dropdown Menu、Badge、Card、Label、Separator。
+- shadcn/ui 组件位于 `src/components/ui/`，包括 Button、Input、Textarea、Dialog、AlertDialog、Select、Tabs、Dropdown Menu、Tooltip、ScrollArea、Badge、Card、Label、Separator。
 - `src/components/theme-provider.tsx` 和 `src/components/theme-toggle.tsx` 提供白天、晚上、跟随系统主题切换。
-- shadcn 主题 token 定义在 `src/styles.css`，旧布局样式通过 CSS 变量映射到同一套 light/dark token。
+- shadcn 主题 token 定义在 `src/styles.css`，页面布局使用 Tailwind utility 和 shadcn/ui 组件完成。
 
 ## 目录结构
 
 - `src/main.tsx`：React 浏览器入口，注册 PWA service worker。
 - `src/App.tsx`：应用启动、状态管理、页面组件和用户操作。
-- `src/styles.css`：Tailwind v4 入口，并引入现有视觉样式。
+- `src/styles.css`：Tailwind v4 入口和 shadcn light/dark 主题 token。
 - `src/components/ui/`：shadcn/ui 组件。
 - `src/components/theme-provider.tsx`、`src/components/theme-toggle.tsx`：主题上下文与切换控件。
 - `src/data.js`：Supabase/localStorage 数据访问和图片上传。

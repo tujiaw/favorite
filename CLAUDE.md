@@ -33,11 +33,11 @@ This is a **Vite + React + TypeScript + Tailwind CSS + shadcn/ui static PWA**. T
 - `decryptSecret(password, encrypted)` - Decrypt vault secrets
 - Used only for account record sensitive fields (password, recovery codes, private notes)
 
-**UI (`src/App.tsx` + `styles.css`):**
+**UI (`src/App.tsx` + `src/styles.css`):**
 - React components own layout, modals, filters, vault, item detail, and AI settings
-- Prefer shadcn/ui primitives from `src/components/ui/` for buttons, inputs, dialogs, selects, tabs, dropdown menus, cards, badges, labels, and separators
+- Prefer shadcn/ui primitives from `src/components/ui/` for buttons, inputs, dialogs, alert dialogs, selects, tabs, dropdown menus, tooltips, scroll areas, cards, badges, labels, and separators
 - Theme support lives in `src/components/theme-provider.tsx` and `src/components/theme-toggle.tsx`, with light/dark tokens in `src/styles.css`
-- Existing CSS class names are retained mainly for app-specific layout and visual continuity, with Tailwind v4 available through `src/styles.css`
+- Avoid app-specific CSS files and custom control classes; use shadcn/ui primitives first and Tailwind utility classes only for business layout.
 
 **Utilities (`src/utils.js`):**
 - `classifyContent(value)` - Auto-detects link/json/code/text types
