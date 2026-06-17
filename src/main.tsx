@@ -1,11 +1,16 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./styles.css";
 import { installIconSupport } from "./icons.js";
 
 installIconSupport();
 
-createRoot(document.querySelector("#app") as HTMLElement).render(<App />);
+createRoot(document.querySelector("#app") as HTMLElement).render(
+  <ThemeProvider defaultTheme="system">
+    <App />
+  </ThemeProvider>
+);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

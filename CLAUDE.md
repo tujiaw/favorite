@@ -16,7 +16,7 @@ Build runs the project verifier, uses Vite to create `dist/`, then writes enviro
 
 ## Architecture
 
-This is a **Vite + React + TypeScript + Tailwind CSS static PWA**. The browser still fetches `@supabase/supabase-js@2` from esm.sh at runtime so Supabase remains environment-configurable.
+This is a **Vite + React + TypeScript + Tailwind CSS + shadcn/ui static PWA**. The browser still fetches `@supabase/supabase-js@2` from esm.sh at runtime so Supabase remains environment-configurable.
 
 **Entry points:**
 - `src/main.tsx` - React browser entry, style import, service worker registration
@@ -35,7 +35,9 @@ This is a **Vite + React + TypeScript + Tailwind CSS static PWA**. The browser s
 
 **UI (`src/App.tsx` + `styles.css`):**
 - React components own layout, modals, filters, vault, item detail, and AI settings
-- Existing CSS class names are retained for visual continuity, with Tailwind v4 available through `src/styles.css`
+- Prefer shadcn/ui primitives from `src/components/ui/` for buttons, inputs, dialogs, selects, tabs, dropdown menus, cards, badges, labels, and separators
+- Theme support lives in `src/components/theme-provider.tsx` and `src/components/theme-toggle.tsx`, with light/dark tokens in `src/styles.css`
+- Existing CSS class names are retained mainly for app-specific layout and visual continuity, with Tailwind v4 available through `src/styles.css`
 
 **Utilities (`src/utils.js`):**
 - `classifyContent(value)` - Auto-detects link/json/code/text types

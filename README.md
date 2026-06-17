@@ -8,7 +8,7 @@
 npm run dev
 ```
 
-项目使用 Vite + React + TypeScript + Tailwind CSS 构建。默认进入本地演示模式，数据保存在浏览器 `localStorage` 中。
+项目使用 Vite + React + TypeScript + Tailwind CSS 构建，UI 组件全面采用 shadcn/ui 风格组件。默认进入本地演示模式，数据保存在浏览器 `localStorage` 中。
 
 开发服务器由 Vite 提供热更新。PWA 静态资源位于 `public/`，`config.js` 作为本地运行时配置从项目根目录读取。
 
@@ -74,11 +74,19 @@ npm run build
 
 `typecheck` 会执行 TypeScript 校验；`build` 会检查关键文件、OAuth/加密/图片上传行为标记和 Supabase RLS SQL，然后由 Vite 生成 `dist/`。
 
+## UI 与主题
+
+- shadcn/ui 组件位于 `src/components/ui/`，包括 Button、Input、Textarea、Dialog、Select、Tabs、Dropdown Menu、Badge、Card、Label、Separator。
+- `src/components/theme-provider.tsx` 和 `src/components/theme-toggle.tsx` 提供白天、晚上、跟随系统主题切换。
+- shadcn 主题 token 定义在 `src/styles.css`，旧布局样式通过 CSS 变量映射到同一套 light/dark token。
+
 ## 目录结构
 
 - `src/main.tsx`：React 浏览器入口，注册 PWA service worker。
 - `src/App.tsx`：应用启动、状态管理、页面组件和用户操作。
 - `src/styles.css`：Tailwind v4 入口，并引入现有视觉样式。
+- `src/components/ui/`：shadcn/ui 组件。
+- `src/components/theme-provider.tsx`、`src/components/theme-toggle.tsx`：主题上下文与切换控件。
 - `src/data.js`：Supabase/localStorage 数据访问和图片上传。
 - `src/crypto.js`：保险箱端到端加密与解密。
 - `src/utils.js`：内容识别、URL/标题/预览处理和通用工具。

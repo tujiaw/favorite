@@ -29,6 +29,30 @@ import {
   Upload
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { loadLLMConfig, loadPrompts, runPrompt, saveLLMConfig, savePrompts } from "./ai.js";
 import { decryptSecret, encryptSecret } from "./crypto.js";
 import { createBaseItem, deleteFavoriteFor, listFavoritesFor, saveFavoriteFor, uploadImageFor } from "./data.js";
@@ -96,7 +120,6 @@ export function App() {
   const [revealedSecret, setRevealedSecret] = useState<{ password?: string } | null>(null);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [sortMenu, setSortMenu] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("updated_at");
   const [sortDesc, setSortDesc] = useState(true);
   const [contentEditing, setContentEditing] = useState(false);
@@ -643,26 +666,27 @@ export function App() {
             <div className="conversation-head">
               <h2>全部收藏 <span>{filteredItems.length}</span></h2>
               <div className="conversation-tools">
-                <button className="sort-trigger" onClick={() => setSortMenu((value) => !value)}>{sortLabel(sortMode)} <Chevron /></button>
-                <button className={`icon-button ${viewMode === "list" ? "active" : ""}`} title="列表视图" onClick={() => setViewMode("list")}><List /></button>
-                <button className={`icon-button ${viewMode === "grid" ? "active" : ""}`} title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 /></button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">{sortLabel(sortMode)} <Chevron /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {(["updated_at", "use_count", "title"] as SortMode[]).map((mode) => (
+                      <DropdownMenuItem key={mode} onClick={() => {
+                        if (sortMode === mode) setSortDesc((value) => !value);
+                        else {
+                          setSortMode(mode);
+                          setSortDesc(true);
+                        }
+                      }}>
+                        {sortMode === mode && sortDesc ? "↓" : "↑"} 按{sortLabel(mode)}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" title="列表视图" onClick={() => setViewMode("list")}><List /></Button>
+                <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 /></Button>
               </div>
-              {sortMenu ? (
-                <div className="sort-menu">
-                  {(["updated_at", "use_count", "title"] as SortMode[]).map((mode) => (
-                    <button key={mode} className={`sort-option ${sortMode === mode ? "active" : ""}`} onClick={() => {
-                      if (sortMode === mode) setSortDesc((value) => !value);
-                      else {
-                        setSortMode(mode);
-                        setSortDesc(true);
-                      }
-                      setSortMenu(false);
-                    }}>
-                      {sortMode === mode && sortDesc ? "↓" : "↑"} 按{sortLabel(mode)}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
             </div>
             <div className="conversation-body">
               <div className={`item-list ${viewMode === "grid" ? "item-grid" : ""}`}>
@@ -800,7 +824,7 @@ function LoginScreen({ onSignIn }: { onSignIn: (provider: string) => void }) {
           </div>
         </div>
         <div className="login-actions">
-          <button className="outline-button" onClick={() => onSignIn("github")}>GitHub 登录</button>
+          <Button variant="outline" onClick={() => onSignIn("github")}>GitHub 登录</Button>
         </div>
       </section>
     </main>
@@ -835,20 +859,21 @@ function Topbar(props: {
         </div>
         <label className="global-search">
           <Search />
-          <input placeholder="搜索收藏内容、标签、URL" value={props.query} onChange={(event) => props.onQuery(event.target.value)} />
+          <Input placeholder="搜索收藏内容、标签、URL" value={props.query} onChange={(event) => props.onQuery(event.target.value)} />
           <kbd>⌘ K</kbd>
         </label>
         <div className="topbar-actions">
-          <button className="create-notebook" onClick={props.onCreate}><Plus /> 收藏 <span className="button-divider"></span><Chevron /></button>
-          {props.installPromptEvent ? <button className="install-button" onClick={props.onPromptInstall} title="安装到本地"><Grid3X3 /> 安装</button> : null}
-          <button className="ai-top-button" onClick={props.onSettings}><Sparkles /> AI 智能整理</button>
-          <button className="icon-button" title="刷新同步" onClick={props.onRefresh}><RefreshCw /></button>
-          <button className={`icon-button ${props.hasVault ? "vault-active" : ""}`} title="保险箱" onClick={props.onOpenVault}><ShieldCheck /></button>
-          <button className="icon-button" title="分享当前收藏" onClick={props.onShare}><Upload /></button>
-          <button className="icon-button" title="快捷操作" onClick={props.onMenu}><Grid3X3 /></button>
+          <Button className="create-notebook" onClick={props.onCreate}><Plus /> 收藏 <span className="button-divider"></span><Chevron /></Button>
+          {props.installPromptEvent ? <Button variant="outline" className="install-button" onClick={props.onPromptInstall} title="安装到本地"><Grid3X3 /> 安装</Button> : null}
+          <Button variant="secondary" className="ai-top-button" onClick={props.onSettings}><Sparkles /> AI 智能整理</Button>
+          <Button variant="ghost" size="icon" title="刷新同步" onClick={props.onRefresh}><RefreshCw /></Button>
+          <Button variant={props.hasVault ? "secondary" : "ghost"} size="icon" title="保险箱" onClick={props.onOpenVault}><ShieldCheck /></Button>
+          <Button variant="ghost" size="icon" title="分享当前收藏" onClick={props.onShare}><Upload /></Button>
+          <Button variant="ghost" size="icon" title="快捷操作" onClick={props.onMenu}><Grid3X3 /></Button>
+          <ThemeToggle />
           <span className="avatar" title={subtitle}>{(props.user.name || props.user.email || "用").slice(0, 1)}</span>
         </div>
-        <button className="icon-button" title="退出登录" onClick={props.onSignOut}><LogOut /></button>
+        <Button variant="ghost" size="icon" title="退出登录" onClick={props.onSignOut}><LogOut /></Button>
       </div>
     </header>
   );
@@ -874,9 +899,9 @@ function Sidebar(props: {
     return (
       <aside className="sidebar sidebar-collapsed">
         <section className="sources-panel collapsed-panel">
-          <button className="icon-button compact" title="展开分类" onClick={props.onToggle}><PanelLeft /></button>
-          <button className="icon-button compact" title="搜索" onClick={props.onToggle}><Search /></button>
-          <button className="icon-button compact" title="分类" onClick={props.onToggle}><Sparkles /></button>
+          <Button variant="ghost" size="icon" title="展开分类" onClick={props.onToggle}><PanelLeft /></Button>
+          <Button variant="ghost" size="icon" title="搜索" onClick={props.onToggle}><Search /></Button>
+          <Button variant="ghost" size="icon" title="分类" onClick={props.onToggle}><Sparkles /></Button>
         </section>
       </aside>
     );
@@ -888,32 +913,34 @@ function Sidebar(props: {
     <aside className="sidebar">
       <section className="sources-panel">
         <div className="nav-list">
-          <button className={`nav-button overview-button ${activeOverview ? "active" : ""}`} onClick={props.onOverview}><HomeIcon /><span>概览</span></button>
+          <Button variant={activeOverview ? "secondary" : "ghost"} className="nav-button overview-button" onClick={props.onOverview}><HomeIcon /><span>概览</span></Button>
         </div>
         <div className="section-label">收藏管理</div>
         <div className="nav-list">
-          <button className={`nav-button ${props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "active" : ""}`} onClick={() => props.onType("all")}><Sparkles /><span>全部收藏</span><strong>{props.items.length}</strong></button>
-          <button className={`nav-button ${props.specialFilter === "recent" ? "active" : ""}`} onClick={props.onRecent}><Clock /><span>最近使用</span><strong>{recentCount}</strong></button>
-          <button className={`nav-button ${props.favoriteOnly ? "active" : ""}`} onClick={props.onFavorite}><Star /><span>星标收藏</span><strong>{favoriteCount}</strong></button>
+          <Button variant={props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="nav-button" onClick={() => props.onType("all")}><Sparkles /><span>全部收藏</span><strong>{props.items.length}</strong></Button>
+          <Button variant={props.specialFilter === "recent" ? "secondary" : "ghost"} className="nav-button" onClick={props.onRecent}><Clock /><span>最近使用</span><strong>{recentCount}</strong></Button>
+          <Button variant={props.favoriteOnly ? "secondary" : "ghost"} className="nav-button" onClick={props.onFavorite}><Star /><span>星标收藏</span><strong>{favoriteCount}</strong></Button>
         </div>
         <div className="section-label">分类</div>
         <div className="nav-list">
           {(["link", "text", "image", "code", "json"] as FavoriteType[]).map((type) => {
             const Icon = type === "link" ? Tag : TYPE_META[type].icon;
             return (
-              <button className={`nav-button ${props.typeFilter === type ? "active" : ""}`} key={type} onClick={() => props.onType(type)}>
+              <Button variant={props.typeFilter === type ? "secondary" : "ghost"} className="nav-button" key={type} onClick={() => props.onType(type)}>
                 <Icon /><span>{categoryLabel(type)}</span><strong>{props.typeCounts[type] || 0}</strong>
-              </button>
+              </Button>
             );
           })}
-          <button className="nav-button nav-action" onClick={() => window.alert("新分类将在下一阶段迁移为可编辑标签管理")}><Plus /><span>新建分类</span></button>
+          <Button variant="ghost" className="nav-button nav-action" onClick={() => window.alert("新分类将在下一阶段迁移为可编辑标签管理")}><Plus /><span>新建分类</span></Button>
         </div>
         <div className="section-label">标签</div>
         <div className="tag-cloud">
           {props.tags.length ? props.tags.slice(0, 8).map(([tag, count]) => (
-            <button className={`tag-chip ${props.tagFilter === tag ? "active" : ""}`} key={tag} onClick={() => props.onTag(tag)}>{tag} <strong>{count}</strong></button>
+            <Badge asChild variant={props.tagFilter === tag ? "default" : "secondary"} key={tag}>
+              <button onClick={() => props.onTag(tag)}>{tag} <strong>{count}</strong></button>
+            </Badge>
           )) : <span className="muted-chip">暂无标签</span>}
-          {props.tagFilter ? <button className="tag-chip clear" onClick={() => props.onTag(null)}>清除</button> : null}
+          {props.tagFilter ? <Button variant="ghost" size="sm" onClick={() => props.onTag(null)}>清除</Button> : null}
         </div>
       </section>
     </aside>
@@ -923,10 +950,11 @@ function Sidebar(props: {
 function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: boolean; onSelect: () => void }) {
   const Icon = TYPE_META[item.type]?.icon || FileText;
   return (
-    <button className={`item-card ${selected ? "selected" : ""}`} onClick={onSelect}>
+    <Card asChild className={`item-card ${selected ? "selected" : ""}`}>
+      <button onClick={onSelect}>
       <div className="item-main">
         <div className="item-title-row">
-          <span className={`type-badge type-${item.type}`}><Icon /></span>
+          <Badge variant="secondary" className={`type-badge type-${item.type}`}><Icon /></Badge>
           <div className="min-w-0">
             <h2 className="item-title">{item.title} <span className="inline-type">{TYPE_META[item.type].label}</span></h2>
             <p className="item-preview">{item.preview || item.content}</p>
@@ -939,7 +967,8 @@ function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: 
         {item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => <span className="meta-tag" key={tag}>{tag}</span>)}
         <span>{formatListDate(item.last_used_at || item.created_at)}</span>
       </div>
-    </button>
+      </button>
+    </Card>
   );
 }
 
@@ -983,7 +1012,7 @@ function DetailPanel(props: {
     return (
       <aside className="detail-panel">
         <div className="detail-scroll">
-          <button className="add-note-button" onClick={props.onCreate}><FileText /> 创建收藏</button>
+          <Button className="add-note-button" onClick={props.onCreate}><FileText /> 创建收藏</Button>
           <div className="detail-empty"><Eye /><p>选择一条收藏查看详情</p></div>
         </div>
       </aside>
@@ -994,34 +1023,34 @@ function DetailPanel(props: {
     return (
       <aside className="detail-panel">
         <div className="detail-scroll">
-          <section className="vault-box">
+          <Card className="vault-box">
             <div className="vault-title">
               <KeyRound /> {item.title}
-              <button className="icon-button" style={{ marginLeft: "auto" }} onClick={props.onFavorite}><Heart fill={item.favorite ? "currentColor" : "none"} /></button>
+              <Button variant="ghost" size="icon" style={{ marginLeft: "auto" }} onClick={props.onFavorite}><Heart fill={item.favorite ? "currentColor" : "none"} /></Button>
             </div>
             <div className="account-fields">
               <div className="account-field account-url-field">
-                <label className="field-label">网址</label>
+                <Label className="field-label">网址</Label>
                 <div className="account-url-control">
-                  <input className="field-value-input" value={item.source_url || ""} readOnly />
-                  <button className="icon-button compact account-open-link" disabled={!item.source_url} onClick={() => item.source_url && props.onOpen(item.source_url)}><ExternalLink /></button>
+                  <Input className="field-value-input" value={item.source_url || ""} readOnly />
+                  <Button variant="outline" size="icon" disabled={!item.source_url} onClick={() => item.source_url && props.onOpen(item.source_url)}><ExternalLink /></Button>
                 </div>
               </div>
               <div className="account-field">
-                <label className="field-label">用户名</label>
-                <input className="field-value-input" value={item.content} readOnly />
+                <Label className="field-label">用户名</Label>
+                <Input className="field-value-input" value={item.content} readOnly />
               </div>
               {item.encrypted_secret ? (
                 <div className="account-field">
-                  <label className="field-label">密码</label>
+                  <Label className="field-label">密码</Label>
                   <div className="password-field">
-                    <input className="password-input" type={props.passwordVisible ? "text" : "password"} value={props.revealedSecret?.password || "••••••••"} readOnly />
-                    <button className="icon-button" onClick={props.onTogglePassword}>{props.passwordVisible ? <EyeOff /> : <Eye />}</button>
+                    <Input className="password-input" type={props.passwordVisible ? "text" : "password"} value={props.revealedSecret?.password || "••••••••"} readOnly />
+                    <Button variant="ghost" size="icon" onClick={props.onTogglePassword}>{props.passwordVisible ? <EyeOff /> : <Eye />}</Button>
                   </div>
                 </div>
               ) : null}
             </div>
-          </section>
+          </Card>
         </div>
       </aside>
     );
@@ -1031,34 +1060,41 @@ function DetailPanel(props: {
       <div className="detail-scroll">
         <div className="document-head">
           <div className="document-title-wrap">
-            <input className="document-title-input" value={item.title} onChange={(event) => props.onTitle(event.target.value)} aria-label="标题" />
+            <Input className="document-title-input" value={item.title} onChange={(event) => props.onTitle(event.target.value)} aria-label="标题" />
           </div>
           <div className="more-wrap">
-            <button className="doc-head-button" onClick={props.onFavorite}><Star fill={item.favorite ? "currentColor" : "none"} /> 收藏</button>
-            <button className="doc-head-icon" onClick={props.onToggleMore}><MoreVertical /></button>
-            {props.moreMenu ? (
-              <div className="more-menu">
-                <button onClick={props.onDuplicate}><Copy /> 复制为新收藏</button>
-                <button onClick={props.onExport}><ExternalLink /> 导出文本</button>
-                <button onClick={props.onDelete}><Trash2 /> 删除</button>
-              </div>
-            ) : null}
+            <Button variant="outline" className="doc-head-button" onClick={props.onFavorite}><Star fill={item.favorite ? "currentColor" : "none"} /> 收藏</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon"><MoreVertical /></Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={props.onDuplicate}><Copy /> 复制为新收藏</DropdownMenuItem>
+                <DropdownMenuItem onClick={props.onExport}><ExternalLink /> 导出文本</DropdownMenuItem>
+                <DropdownMenuItem onClick={props.onDelete} className="text-destructive"><Trash2 /> 删除</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         <div className="document-tags-row">
-          <select className="detail-type-select" value={item.type} onChange={(event) => props.onType(event.target.value as FavoriteType)} aria-label="类型">
-            {(["link", "text", "image", "code", "json"] as FavoriteType[]).map((type) => (
-              <option value={type} key={type}>{TYPE_META[type].label}</option>
-            ))}
-          </select>
+          <Select value={item.type} onValueChange={(value) => props.onType(value as FavoriteType)}>
+            <SelectTrigger className="detail-type-select" aria-label="类型">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(["link", "text", "image", "code", "json"] as FavoriteType[]).map((type) => (
+                <SelectItem value={type} key={type}>{TYPE_META[type].label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="editable-tags">
             {item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => (
-              <span className="meta-pill tag-edit-chip" key={tag}>
+              <Badge variant="secondary" className="meta-pill tag-edit-chip" key={tag}>
                 {tag}
                 <button type="button" title={`移除标签 ${tag}`} onClick={() => props.onRemoveTag(tag)}>×</button>
-              </span>
+              </Badge>
             ))}
-            <input
+            <Input
               placeholder="+ 添加标签"
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === "," || event.key === "，") {
@@ -1074,26 +1110,28 @@ function DetailPanel(props: {
             />
           </div>
           <div className="detail-toolbar document-tag-actions">
-            <button className="toolbar-button" onClick={props.onToggleEdit}><Eye /> {props.contentEditing ? "预览" : "编辑"}</button>
-            <button className="toolbar-button" onClick={props.onCopy}><Copy /> 复制</button>
+            <Button variant="outline" className="toolbar-button" onClick={props.onToggleEdit}><Eye /> {props.contentEditing ? "预览" : "编辑"}</Button>
+            <Button variant="outline" className="toolbar-button" onClick={props.onCopy}><Copy /> 复制</Button>
             {item.type !== "image" ? (
               <div className="editor-ai-menu">
-                <button className={`toolbar-button ai-button ${props.aiMenu ? "active" : ""}`} onClick={props.onToggleAiMenu}><Sparkles /> AI <Chevron /></button>
-                {props.aiMenu ? (
-                  <div className="ai-popover">
-                    <button onClick={props.onRefreshAiSummary} disabled={props.aiLoading}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="toolbar-button ai-button"><Sparkles /> AI <Chevron /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={props.onRefreshAiSummary} disabled={props.aiLoading}>
                       <Sparkles /> AI 总结{props.aiLoading ? "…" : ""}
-                    </button>
+                    </DropdownMenuItem>
                     {props.prompts.map((prompt) => (
-                      <button key={prompt.id} onClick={() => props.onRunAI(prompt.id)} disabled={props.aiLoading} title={prompt.name}>
+                      <DropdownMenuItem key={prompt.id} onClick={() => props.onRunAI(prompt.id)} disabled={props.aiLoading} title={prompt.name}>
                         <Sparkles /> {prompt.name}{props.aiLoading ? "…" : ""}
-                      </button>
+                      </DropdownMenuItem>
                     ))}
-                  </div>
-                ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ) : null}
-            {item.source_url ? <a className="toolbar-button" href={item.source_url} target="_blank" rel="noreferrer"><ExternalLink /> 打开</a> : null}
+            {item.source_url ? <Button asChild variant="outline" className="toolbar-button"><a href={item.source_url} target="_blank" rel="noreferrer"><ExternalLink /> 打开</a></Button> : null}
           </div>
         </div>
         <div className="document-meta-row">
@@ -1105,7 +1143,7 @@ function DetailPanel(props: {
           <div className="image-preview"><img src={item.content} alt={item.title} /></div>
         ) : props.contentEditing ? (
           <div className="editor-card">
-            <textarea className="textarea" value={item.content} onChange={(event) => props.onContentDraft(event.target.value)} onBlur={(event) => props.onContentCommit(event.target.value)} />
+            <Textarea className="textarea" value={item.content} onChange={(event) => props.onContentDraft(event.target.value)} onBlur={(event) => props.onContentCommit(event.target.value)} />
           </div>
         ) : (
           <div className="document-preview-card">
@@ -1117,20 +1155,20 @@ function DetailPanel(props: {
           <span><Check /> 自动保存成功</span>
         </div>
         {props.aiSummaryVisible && props.aiSummary ? (
-          <section className="ai-summary-card">
+          <Card className="ai-summary-card">
             <div className="ai-summary-head">
               <h3><Sparkles /> AI 总结</h3>
-              <button className="icon-button compact" title="关闭 AI 总结" onClick={props.onCloseAiSummary}>×</button>
+              <Button variant="ghost" size="icon" title="关闭 AI 总结" onClick={props.onCloseAiSummary}>×</Button>
             </div>
             <p>{props.aiSummaryExpanded ? props.aiSummary : truncate(props.aiSummary, 120)}</p>
             <div>
               <span>由 AI 生成，可能不完全准确</span>
-              <button className="ghost-button" onClick={props.onApplyAiSummary}><Check /> 应用覆盖</button>
-              <button className="ghost-button" onClick={props.onCopyAiSummary}><Copy /> 复制</button>
-              <button className="ghost-button" onClick={props.onToggleAiSummary}><List /> {props.aiSummaryExpanded ? "收起" : "展开"}</button>
-              <button className="ghost-button" onClick={props.onRefreshAiSummary}><RefreshCw /> 重新生成</button>
+              <Button variant="ghost" size="sm" onClick={props.onApplyAiSummary}><Check /> 应用覆盖</Button>
+              <Button variant="ghost" size="sm" onClick={props.onCopyAiSummary}><Copy /> 复制</Button>
+              <Button variant="ghost" size="sm" onClick={props.onToggleAiSummary}><List /> {props.aiSummaryExpanded ? "收起" : "展开"}</Button>
+              <Button variant="ghost" size="sm" onClick={props.onRefreshAiSummary}><RefreshCw /> 重新生成</Button>
             </div>
-          </section>
+          </Card>
         ) : null}
       </div>
     </aside>
@@ -1154,18 +1192,17 @@ function CreateModal(props: {
 }) {
   const isFavorite = props.modalTab === "favorite";
   return (
-    <div className="modal-backdrop">
-      <section className="create-modal modal-card">
-        <div className="modal-header">
-          <div className="tab-tabs">
-            <button className={`tab-tab ${isFavorite ? "active" : ""}`} onClick={() => props.onTab("favorite")}><FileText /> 收藏</button>
-            <button className={`tab-tab ${!isFavorite ? "active" : ""}`} onClick={() => props.onTab("account")}><KeyRound /> 账号</button>
-          </div>
-          <button className="icon-button" type="button" onClick={props.onClose}>×</button>
-        </div>
-        {isFavorite ? (
-          <>
-            <textarea
+    <Dialog open onOpenChange={(open) => !open && props.onClose()}>
+      <DialogContent className="create-modal max-w-2xl">
+        <Tabs value={props.modalTab} onValueChange={(value) => props.onTab(value as ModalTab)}>
+          <DialogHeader>
+            <TabsList>
+              <TabsTrigger value="favorite"><FileText /> 收藏</TabsTrigger>
+              <TabsTrigger value="account"><KeyRound /> 账号</TabsTrigger>
+            </TabsList>
+          </DialogHeader>
+          <TabsContent value="favorite">
+            <Textarea
               className="textarea quick-input"
               placeholder="粘贴 URL、文本、代码、JSON，或直接粘贴图片。按 Ctrl/⌘ + Enter 保存。"
               value={props.quickInput}
@@ -1178,31 +1215,34 @@ function CreateModal(props: {
             <div className="composer-actions source-modal-actions">
               <p className="status">{props.status}</p>
               <input className="hidden" type="file" accept="image/*" ref={props.fileInputRef} onChange={(event) => props.onImage(event.target.files?.[0])} />
-              <button className="icon-button" title="添加图片" onClick={() => props.fileInputRef.current?.click()}><Image /></button>
-              <button className="primary-button" onClick={props.onSaveQuick}><Plus /> 保存</button>
+              <Button variant="ghost" size="icon" title="添加图片" onClick={() => props.fileInputRef.current?.click()}><Image /></Button>
+              <Button onClick={props.onSaveQuick}><Plus /> 保存</Button>
             </div>
-          </>
-        ) : !props.hasVaultPassword ? (
-          <div className="vault-notice">
-            <p>请先在右上角设置保险箱主密码</p>
-            <button className="icon-button" onClick={props.onOpenVault}><ShieldCheck /></button>
-          </div>
-        ) : (
-          <form onSubmit={props.onCreateAccount}>
-            <div className="account-form">
-              <input className="input" name="url" placeholder="URL" />
-              <input className="input" name="username" placeholder="用户名" />
-              <input className="input" name="password" placeholder="密码" type="password" required />
-              <textarea className="textarea" name="note" placeholder="备注，可选" rows={2}></textarea>
-            </div>
-            <div className="modal-actions">
-              <span className="status">敏感字段加密保存</span>
-              <button type="submit" className="primary-button"><ShieldCheck /> 加密保存</button>
-            </div>
-          </form>
-        )}
-      </section>
-    </div>
+          </TabsContent>
+          <TabsContent value="account">
+            {!props.hasVaultPassword ? (
+              <Card className="vault-notice p-4">
+                <p>请先在右上角设置保险箱主密码</p>
+                <Button variant="outline" size="icon" onClick={props.onOpenVault}><ShieldCheck /></Button>
+              </Card>
+            ) : (
+              <form onSubmit={props.onCreateAccount}>
+                <div className="account-form">
+                  <Input name="url" placeholder="URL" />
+                  <Input name="username" placeholder="用户名" />
+                  <Input name="password" placeholder="密码" type="password" required />
+                  <Textarea name="note" placeholder="备注，可选" rows={2}></Textarea>
+                </div>
+                <DialogFooter className="mt-4">
+                  <span className="status mr-auto">敏感字段加密保存</span>
+                  <Button type="submit"><ShieldCheck /> 加密保存</Button>
+                </DialogFooter>
+              </form>
+            )}
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1213,63 +1253,65 @@ function VaultModal({ expiresAt, onClose, onSubmit, onClear }: {
   onClear: () => void;
 }) {
   return (
-    <div className="modal-backdrop">
-      <form className="modal-card vault-modal" onSubmit={onSubmit}>
-        <div className="modal-header">
-          <div>
-            <h2 className="modal-title">保险箱设置</h2>
-            <p className="modal-subtitle">设置主密码后，账号密码将被加密保存</p>
-          </div>
-          <button className="icon-button" type="button" onClick={onClose}>×</button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="vault-modal">
+        <DialogHeader>
+          <DialogTitle>保险箱设置</DialogTitle>
+          <DialogDescription>设置主密码后，账号密码将被加密保存</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit}>
         {expiresAt ? (
-          <div className="vault-status">
+          <Card className="vault-status">
             <div className="vault-status-icon"><ShieldCheck /></div>
             <div className="vault-status-copy">
               <strong>保险箱已启用</strong>
               <span>有效期至 {new Date(expiresAt).toLocaleString("zh-CN")}</span>
             </div>
-            <button className="ghost-button danger-ghost" type="button" onClick={onClear}><Trash2 /> 清除</button>
-          </div>
+            <Button variant="destructive" type="button" onClick={onClear}><Trash2 /> 清除</Button>
+          </Card>
         ) : (
           <div className="vault-form">
-            <input className="input" name="vaultPassword" placeholder="设置主密码，至少 8 位" type="password" required minLength={8} />
-            <input className="input" name="confirmPassword" placeholder="确认主密码" type="password" required minLength={8} />
-            <select className="input" name="expireTime">
-              <option value="3600000">1小时后过期</option>
-              <option value="86400000">1天后过期</option>
-              <option value="604800000">7天后过期</option>
-              <option value="2592000000">30天后过期</option>
-              <option value="-1">永不过期</option>
-            </select>
+            <Input name="vaultPassword" placeholder="设置主密码，至少 8 位" type="password" required minLength={8} />
+            <Input name="confirmPassword" placeholder="确认主密码" type="password" required minLength={8} />
+            <Select name="expireTime" defaultValue="3600000">
+              <SelectTrigger>
+                <SelectValue placeholder="选择过期时间" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3600000">1小时后过期</SelectItem>
+                <SelectItem value="86400000">1天后过期</SelectItem>
+                <SelectItem value="604800000">7天后过期</SelectItem>
+                <SelectItem value="2592000000">30天后过期</SelectItem>
+                <SelectItem value="-1">永不过期</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         )}
-        <div className="modal-actions">
+        <DialogFooter className="mt-4">
           <span className="status">主密码仅保存在浏览器本地</span>
-          {expiresAt ? <button className="outline-button" type="button" onClick={onClose}>关闭</button> : <button type="submit" className="primary-button"><Check /> 确认设置</button>}
-        </div>
-      </form>
-    </div>
+          {expiresAt ? <Button variant="outline" type="button" onClick={onClose}>关闭</Button> : <Button type="submit"><Check /> 确认设置</Button>}
+        </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function ConfirmModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal-card confirm-modal">
-        <div className="modal-header">
-          <div>
-            <h2 className="modal-title">确认删除</h2>
-            <p className="modal-subtitle">此操作无法撤销</p>
-          </div>
-        </div>
-        <div className="confirm-content"><p>确定要删除这条收藏吗？</p></div>
-        <div className="modal-actions">
-          <button className="outline-button" onClick={onCancel}>取消</button>
-          <button className="danger-button" onClick={onConfirm}><Trash2 /> 确认删除</button>
-        </div>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="confirm-modal">
+        <DialogHeader>
+          <DialogTitle>确认删除</DialogTitle>
+          <DialogDescription>此操作无法撤销</DialogDescription>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">确定要删除这条收藏吗？</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>取消</Button>
+          <Button variant="destructive" onClick={onConfirm}><Trash2 /> 确认删除</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1283,57 +1325,57 @@ function SettingsModal({ config, prompts, status, onClose, onSubmit, onAddPrompt
   onDeletePrompt: (id: string) => void;
 }) {
   return (
-    <div className="modal-backdrop">
-      <form className="modal-card settings-modal" onSubmit={onSubmit}>
-        <div className="modal-header">
-          <div>
-            <h2 className="modal-title">设置</h2>
-            <p className="modal-subtitle">配置大模型与提示词，所有信息仅保存在浏览器本地</p>
-          </div>
-          <button className="icon-button" type="button" onClick={onClose}>×</button>
-        </div>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="settings-modal max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>设置</DialogTitle>
+          <DialogDescription>配置大模型与提示词，所有信息仅保存在浏览器本地</DialogDescription>
+        </DialogHeader>
+      <form onSubmit={onSubmit}>
         <div className="settings-section">
           <h3 className="settings-section-title">大模型配置</h3>
           <div className="settings-grid">
-            <label className="settings-field span-2">
+            <Label className="settings-field span-2">
               <span>Base URL</span>
-              <input className="input" name="baseUrl" placeholder="https://api.openai.com/v1" defaultValue={config.baseUrl} />
-            </label>
-            <label className="settings-field">
+              <Input name="baseUrl" placeholder="https://api.openai.com/v1" defaultValue={config.baseUrl} />
+            </Label>
+            <Label className="settings-field">
               <span>模型</span>
-              <input className="input" name="model" placeholder="gpt-4o-mini" defaultValue={config.model} />
-            </label>
-            <label className="settings-field span-2">
+              <Input name="model" placeholder="gpt-4o-mini" defaultValue={config.model} />
+            </Label>
+            <Label className="settings-field span-2">
               <span>API Key</span>
-              <input className="input" name="apiKey" type="password" placeholder="sk-..." defaultValue={config.apiKey} />
-            </label>
+              <Input name="apiKey" type="password" placeholder="sk-..." defaultValue={config.apiKey} />
+            </Label>
           </div>
           <p className="settings-hint">兼容 OpenAI 接口格式，自动拼接 <code>/chat/completions</code>。</p>
         </div>
+        <Separator className="my-4" />
         <div className="settings-section">
           <div className="settings-section-head">
             <h3 className="settings-section-title">提示词</h3>
-            <button className="outline-button compact-button" type="button" onClick={onAddPrompt}><Plus /> 新增</button>
+            <Button variant="outline" size="sm" type="button" onClick={onAddPrompt}><Plus /> 新增</Button>
           </div>
           <div className="prompt-list">
             {prompts.map((prompt) => (
-              <div className="prompt-item" key={prompt.id}>
+              <Card className="prompt-item" key={prompt.id}>
                 <div className="prompt-item-head">
-                  <input className="input" name={`prompt-name-${prompt.id}`} defaultValue={prompt.name} placeholder="提示词名称" />
-                  <button className="icon-button" type="button" onClick={() => onDeletePrompt(prompt.id)} title="删除"><Trash2 /></button>
+                  <Input name={`prompt-name-${prompt.id}`} defaultValue={prompt.name} placeholder="提示词名称" />
+                  <Button variant="ghost" size="icon" type="button" onClick={() => onDeletePrompt(prompt.id)} title="删除"><Trash2 /></Button>
                 </div>
-                <textarea className="textarea" name={`prompt-content-${prompt.id}`} defaultValue={prompt.content} placeholder="提示词内容，将拼接到正文之前"></textarea>
-              </div>
+                <Textarea name={`prompt-content-${prompt.id}`} defaultValue={prompt.content} placeholder="提示词内容，将拼接到正文之前" />
+              </Card>
             ))}
           </div>
         </div>
-        <div className="modal-actions">
+        <DialogFooter className="mt-4">
           <span className="status">{status}</span>
-          <button type="button" className="ghost-button" onClick={onClose}>取消</button>
-          <button type="submit" className="primary-button"><Check /> 保存</button>
-        </div>
+          <Button type="button" variant="ghost" onClick={onClose}>取消</Button>
+          <Button type="submit"><Check /> 保存</Button>
+        </DialogFooter>
       </form>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
