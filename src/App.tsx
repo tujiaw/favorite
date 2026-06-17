@@ -54,6 +54,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import {
@@ -1112,45 +1115,21 @@ function DetailPanel(props: {
   return (
     <aside className="min-h-0 bg-background">
       <ScrollArea className="h-full">
-        <div className="grid gap-4 p-4">
-        <div className="flex items-start gap-3">
-          <Input className="h-12 flex-1 border-0 px-0 text-xl font-semibold shadow-none focus-visible:ring-0" value={item.title} onChange={(event) => props.onTitle(event.target.value)} aria-label="标题" />
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={props.onFavorite}><Star fill={item.favorite ? "currentColor" : "none"} /> 收藏</Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}>
-                <MoreVertical />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={props.onDuplicate}><Copy /> 复制为新收藏</DropdownMenuItem>
-                <DropdownMenuItem onClick={props.onExport}><ExternalLink /> 导出文本</DropdownMenuItem>
-                <DropdownMenuItem onClick={props.onDelete} className="text-destructive"><Trash2 /> 删除</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
-        </div>
-        <div className="grid gap-3 rounded-lg border bg-card p-3">
-          <div className="flex flex-wrap items-center gap-2">
-          <Select value={item.type} onValueChange={(value) => props.onType(value as FavoriteType)}>
-            <SelectTrigger className="w-32" aria-label="类型">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(["link", "text", "image", "code", "json"] as FavoriteType[]).map((type) => (
-                <SelectItem value={type} key={type}>{TYPE_META[type].label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            {item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => (
-              <Badge variant="secondary" className="gap-1" key={tag}>
+        <div className="grid gap-3 p-4">
+        <div className="grid min-w-0 grid-cols-[minmax(160px,1fr)_auto] items-center gap-3 rounded-lg border bg-card px-3 py-2">
+          <Input className="h-8 min-w-0 border-0 bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0" value={item.title} onChange={(event) => props.onTitle(event.target.value)} aria-label="标题" />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Badge variant="outline" className="shrink-0">{TYPE_META[item.type].label}</Badge>
+            {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => (
+              <Badge variant="secondary" className="max-w-[92px] gap-1 truncate" key={tag}>
                 {tag}
-                <Button variant="ghost" size="sm" className="h-4 px-1" type="button" title={`移除标签 ${tag}`} onClick={() => props.onRemoveTag(tag)}>×</Button>
+                <Button variant="ghost" size="icon-xs" className="size-4" type="button" title={`移除标签 ${tag}`} onClick={() => props.onRemoveTag(tag)}>×</Button>
               </Badge>
             ))}
+            {item.tags.filter((tag) => !isSystemTag(tag)).length > 2 ? <Badge variant="outline">+{item.tags.filter((tag) => !isSystemTag(tag)).length - 2}</Badge> : null}
             <Input
-              className="h-8 w-32"
-              placeholder="+ 添加标签"
+              className="h-7 w-24"
+              placeholder="+ 标签"
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === "," || event.key === "，") {
                   event.preventDefault();
@@ -1163,33 +1142,52 @@ function DetailPanel(props: {
                 event.currentTarget.value = "";
               }}
             />
-          </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={props.onToggleEdit}><Eye /> {props.contentEditing ? "预览" : "编辑"}</Button>
-            <Button variant="outline" onClick={props.onCopy}><Copy /> 复制</Button>
+            <Button variant="outline" size="icon" title="复制内容" onClick={props.onCopy}><Copy /></Button>
             {item.type !== "image" ? (
-              <div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="outline" className="gap-1.5" />}>
-                    <Sparkles />
-                    <span>AI</span>
-                    <ChevronDown className="size-3.5 opacity-70" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={props.onRefreshAiSummary} disabled={props.aiLoading}>
-                      <Sparkles /> AI 总结{props.aiLoading ? "…" : ""}
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="outline" className="gap-1.5" />}>
+                  <Sparkles />
+                  <span>AI</span>
+                  <ChevronDown className="size-3.5 opacity-70" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={props.onRefreshAiSummary} disabled={props.aiLoading}>
+                    <Sparkles /> AI 总结{props.aiLoading ? "…" : ""}
+                  </DropdownMenuItem>
+                  {props.prompts.map((prompt) => (
+                    <DropdownMenuItem key={prompt.id} onClick={() => props.onRunAI(prompt.id)} disabled={props.aiLoading} title={prompt.name}>
+                      <Sparkles /> {prompt.name}{props.aiLoading ? "…" : ""}
                     </DropdownMenuItem>
-                    {props.prompts.map((prompt) => (
-                      <DropdownMenuItem key={prompt.id} onClick={() => props.onRunAI(prompt.id)} disabled={props.aiLoading} title={prompt.name}>
-                        <Sparkles /> {prompt.name}{props.aiLoading ? "…" : ""}
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            <Button variant="outline" size="icon" title={item.favorite ? "取消收藏" : "收藏"} onClick={props.onFavorite}><Star fill={item.favorite ? "currentColor" : "none"} /></Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}>
+                <MoreVertical />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Tag /> 修改类型
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {(["link", "text", "image", "code", "json"] as FavoriteType[]).map((type) => (
+                      <DropdownMenuItem key={type} onClick={() => props.onType(type)}>
+                        {item.type === type ? <Check /> : <span className="size-3.5" />}
+                        {TYPE_META[type].label}
                       </DropdownMenuItem>
                     ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            ) : null}
-            {item.source_url ? <Button render={<a href={item.source_url} target="_blank" rel="noreferrer" />} variant="outline"><ExternalLink /> 打开</Button> : null}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                {item.source_url ? <DropdownMenuItem onClick={() => props.onOpen(item.source_url || "")}><ExternalLink /> 打开链接</DropdownMenuItem> : null}
+                <DropdownMenuItem onClick={props.onDuplicate}><Copy /> 复制为新收藏</DropdownMenuItem>
+                <DropdownMenuItem onClick={props.onExport}><ExternalLink /> 导出文本</DropdownMenuItem>
+                <DropdownMenuItem onClick={props.onDelete} className="text-destructive"><Trash2 /> 删除</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
