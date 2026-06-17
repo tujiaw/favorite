@@ -26,7 +26,8 @@ import {
   Star,
   Tag,
   Trash2,
-  Upload
+  Upload,
+  X
 } from "lucide-react";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -62,8 +63,8 @@ import {
 import {
   InputGroup,
   InputGroupAddon,
-  InputGroupInput,
-  InputGroupText
+  InputGroupButton,
+  InputGroupInput
 } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,6 +106,28 @@ type SortMode = "updated_at" | "use_count" | "title";
 type ModalTab = "favorite" | "account";
 type LLMConfig = { baseUrl: string; apiKey: string; model: string };
 type PromptConfig = { id: string; name: string; content: string };
+type BitwardenExport = {
+  encrypted?: boolean;
+  folders?: { id?: unknown; name?: unknown }[];
+  items?: BitwardenItem[];
+};
+type BitwardenItem = {
+  type?: unknown;
+  name?: unknown;
+  favorite?: unknown;
+  id?: unknown;
+  folderId?: unknown;
+  fields?: unknown;
+  notes?: unknown;
+  creationDate?: unknown;
+  revisionDate?: unknown;
+  login?: {
+    uris?: { uri?: unknown }[];
+    username?: unknown;
+    password?: unknown;
+    totp?: unknown;
+  };
+};
 
 const TYPE_META: Record<FavoriteType | "all", { label: string; icon: typeof Sparkles }> = {
   all: { label: "全部", icon: Sparkles },
@@ -153,6 +176,7 @@ export function App() {
   const [aiSummaryById, setAiSummaryById] = useState<Record<string, string>>({});
   const [installPromptEvent, setInstallPromptEvent] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bitwardenFileInputRef = useRef<HTMLInputElement>(null);
   const draftTimers = useRef(new Map<string, number>());
 
   const context = useMemo(() => ({ supabaseReady, supabase, user }), [supabaseReady, supabase, user]);
@@ -395,6 +419,101 @@ export function App() {
     await refreshItems(context, item.id);
   }
 
+  async function importBitwardenExport(file?: File) {
+    if (!file || !user) return;
+    if (!vaultPassword) {
+      setCreateModal(false);
+      setVaultModal(true);
+      setStatus("请先设置保险箱主密码，再导入 Bitwarden");
+      return;
+    }
+    try {
+      setCreateModal(false);
+      setStatus(`正在读取 Bitwarden 文件：${file.name}`);
+      await waitForPaint();
+      const exportData = parseBitwardenExport(await file.text());
+      const total = exportData.items?.length || 0;
+      const loginItems = (exportData.items || []).filter(isBitwardenLoginItem);
+      const folderNames = new Map(
+        (exportData.folders || []).map((folder) => [stringValue(folder.id), stringValue(folder.name)] as const)
+      );
+      const existingKeys = new Set(
+        items.filter((item) => item.type === "account").map((item) => accountFingerprint(item))
+      );
+      let imported = 0;
+      let skipped = total - loginItems.length;
+      let processed = 0;
+      let firstImportedId: string | null = null;
+
+      setStatus(`正在导入 Bitwarden：0/${loginItems.length}`);
+      await waitForPaint();
+
+      for (const bitwardenItem of loginItems) {
+        processed += 1;
+        const login = bitwardenItem.login;
+        const uris = Array.isArray(login.uris)
+          ? login.uris.map((uri) => stringValue(uri?.uri)).filter(Boolean)
+          : [];
+        const sourceUrl = uris[0] || "";
+        const username = stringValue(login.username);
+        const password = stringValue(login.password);
+        const title = stringValue(bitwardenItem.name) || domainFromUrl(sourceUrl) || username || "Bitwarden account";
+
+        if (!sourceUrl && !username && !password) {
+          skipped += 1;
+          continue;
+        }
+
+        const duplicateKey = accountFingerprint({ title, content: username, source_url: sourceUrl });
+        if (existingKeys.has(duplicateKey)) {
+          skipped += 1;
+          continue;
+        }
+
+        const folderName = folderNames.get(stringValue(bitwardenItem.folderId)) || "";
+        const encrypted = await encryptSecret(vaultPassword, {
+          password,
+          totp: stringValue(login.totp),
+          notes: stringValue(bitwardenItem.notes),
+          fields: Array.isArray(bitwardenItem.fields) ? bitwardenItem.fields : [],
+          bitwardenId: stringValue(bitwardenItem.id)
+        });
+        const importedItem = createBaseItem({
+          type: "account",
+          title,
+          content: username,
+          source_url: sourceUrl || null,
+          domain: domainFromUrl(sourceUrl),
+          preview: "Imported from Bitwarden",
+          encrypted_secret: encrypted
+        }) as FavoriteItem;
+
+        importedItem.user_id = user.id;
+        importedItem.favorite = Boolean(bitwardenItem.favorite);
+        importedItem.tags = ["Bitwarden", folderName].filter(Boolean);
+        importedItem.note = buildBitwardenImportNote(uris, folderName);
+        importedItem.created_at = validDateString(bitwardenItem.creationDate) || importedItem.created_at;
+        importedItem.updated_at = validDateString(bitwardenItem.revisionDate) || importedItem.updated_at;
+
+        await saveFavoriteFor(context, importedItem);
+        existingKeys.add(duplicateKey);
+        imported += 1;
+        firstImportedId ||= importedItem.id;
+
+        if (processed === 1 || processed % 5 === 0 || processed === loginItems.length) {
+          setStatus(`正在导入 Bitwarden：${processed}/${loginItems.length}，已新增 ${imported} 条`);
+          await waitForPaint();
+        }
+      }
+
+      setModalTab("favorite");
+      setStatus(`Bitwarden 导入完成：新增 ${imported} 条，跳过 ${skipped} 条`);
+      await refreshItems(context, firstImportedId || selectedId);
+    } catch (error: any) {
+      setStatus(`Bitwarden 导入失败：${error.message || "文件格式不正确"}`);
+    }
+  }
+
   async function updateSelected(patch: Partial<FavoriteItem>) {
     if (!selectedItem) return;
     const next = { ...selectedItem, ...patch, updated_at: new Date().toISOString() };
@@ -446,6 +565,24 @@ export function App() {
     setSelectedId(null);
     setStatus("已删除收藏");
     await refreshItems(context, null);
+  }
+
+  async function copyAccountPassword() {
+    if (!selectedItem?.encrypted_secret || !vaultPassword) {
+      setStatus("请先设置保险箱主密码");
+      return;
+    }
+    try {
+      const secret = revealedSecret?.password ? revealedSecret : await decryptSecret(vaultPassword, selectedItem.encrypted_secret);
+      if (!secret?.password) {
+        setStatus("当前账号没有可复制的密码");
+        return;
+      }
+      setRevealedSecret(secret);
+      await copyText(secret.password);
+    } catch {
+      setStatus("解密失败，请检查保险箱主密码");
+    }
   }
 
   async function duplicateSelected() {
@@ -763,7 +900,11 @@ export function App() {
           onApplyAiSummary={() => selectedItem && aiSummaryById[selectedItem.id] && updateSelected({ content: aiSummaryById[selectedItem.id], preview: makePreview(aiSummaryById[selectedItem.id]) })}
           onToggleAiSummary={() => setAiSummaryExpanded((value) => !value)}
           onTogglePassword={togglePassword}
-          onOpen={(url) => window.open(url, "_blank", "noreferrer")}
+          onCopyPassword={copyAccountPassword}
+          onOpen={async (url, copyBeforeOpen) => {
+            if (copyBeforeOpen) await copyText(copyBeforeOpen);
+            window.open(url, "_blank", "noreferrer");
+          }}
         />
       </div>
       <p className="fixed bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
@@ -774,6 +915,7 @@ export function App() {
           status={status}
           hasVaultPassword={Boolean(vaultPassword)}
           fileInputRef={fileInputRef}
+          bitwardenFileInputRef={bitwardenFileInputRef}
           onTab={setModalTab}
           onQuickInput={setQuickInput}
           onClose={() => {
@@ -793,6 +935,7 @@ export function App() {
             setCreateModal(false);
           }}
           onCreateAccount={createAccount}
+          onBitwardenFile={importBitwardenExport}
         />
       ) : null}
       {vaultModal ? (
@@ -885,7 +1028,15 @@ function Topbar(props: {
             onChange={(event) => props.onQuery(event.target.value)}
           />
           <InputGroupAddon align="inline-end">
-            <InputGroupText className="rounded-lg border bg-muted px-1.5 py-0.5 font-mono text-[11px] leading-none">⌘ K</InputGroupText>
+            <InputGroupButton
+              aria-label="清空搜索"
+              disabled={!props.query}
+              size="icon-xs"
+              title="清空搜索"
+              onClick={() => props.onQuery("")}
+            >
+              <X />
+            </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
         <div className="flex min-w-0 items-center justify-end gap-2">
@@ -1060,7 +1211,8 @@ function DetailPanel(props: {
   onApplyAiSummary: () => void;
   onToggleAiSummary: () => void;
   onTogglePassword: () => void;
-  onOpen: (url: string) => void;
+  onCopyPassword: () => void;
+  onOpen: (url: string, copyBeforeOpen?: string) => void;
 }) {
   if (!props.item) {
     return (
@@ -1084,13 +1236,14 @@ function DetailPanel(props: {
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
               <KeyRound /> {item.title}
               <Button variant="ghost" size="icon" className="ml-auto" onClick={props.onFavorite}><Heart fill={item.favorite ? "currentColor" : "none"} /></Button>
+              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" title="删除" onClick={props.onDelete}><Trash2 /></Button>
             </div>
             <div className="grid gap-3">
               <div className="grid gap-2">
                 <Label>网址</Label>
                 <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
                   <Input value={item.source_url || ""} readOnly />
-                  <Button variant="outline" size="icon" disabled={!item.source_url} onClick={() => item.source_url && props.onOpen(item.source_url)}><ExternalLink /></Button>
+                  <Button variant="outline" size="icon" disabled={!item.source_url} title="打开链接并复制用户名" onClick={() => item.source_url && props.onOpen(item.source_url, item.content)}><ExternalLink /></Button>
                 </div>
               </div>
               <div className="grid gap-2">
@@ -1100,9 +1253,10 @@ function DetailPanel(props: {
               {item.encrypted_secret ? (
                 <div className="grid gap-2">
                   <Label>密码</Label>
-                  <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_36px_36px] gap-2">
                     <Input type={props.passwordVisible ? "text" : "password"} value={props.revealedSecret?.password || "••••••••"} readOnly />
-                    <Button variant="ghost" size="icon" onClick={props.onTogglePassword}>{props.passwordVisible ? <EyeOff /> : <Eye />}</Button>
+                    <Button variant="ghost" size="icon" title={props.passwordVisible ? "隐藏密码" : "显示密码"} onClick={props.onTogglePassword}>{props.passwordVisible ? <EyeOff /> : <Eye />}</Button>
+                    <Button variant="outline" size="icon" title="复制密码" onClick={props.onCopyPassword}><Copy /></Button>
                   </div>
                 </div>
               ) : null}
@@ -1238,6 +1392,7 @@ function CreateModal(props: {
   status: string;
   hasVaultPassword: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  bitwardenFileInputRef: React.RefObject<HTMLInputElement | null>;
   onTab: (tab: ModalTab) => void;
   onQuickInput: (value: string) => void;
   onClose: () => void;
@@ -1246,6 +1401,7 @@ function CreateModal(props: {
   onImage: (file?: File) => void;
   onOpenVault: () => void;
   onCreateAccount: (event: FormEvent<HTMLFormElement>) => void;
+  onBitwardenFile: (file?: File) => void;
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
@@ -1283,6 +1439,26 @@ function CreateModal(props: {
               </Card>
             ) : (
               <form onSubmit={props.onCreateAccount}>
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
+                  <div className="grid gap-1">
+                    <span className="text-sm font-medium">Bitwarden</span>
+                    <span className="text-xs text-muted-foreground">导入未加密 JSON 导出的登录项</span>
+                  </div>
+                  <Input
+                    className="hidden"
+                    type="file"
+                    accept=".json,application/json"
+                    ref={props.bitwardenFileInputRef}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      props.onBitwardenFile(file);
+                    }}
+                  />
+                  <Button type="button" variant="outline" onClick={() => props.bitwardenFileInputRef.current?.click()}>
+                    <Upload /> 导入
+                  </Button>
+                </div>
                 <div className="grid gap-3">
                   <Input name="url" placeholder="URL" />
                   <Input name="username" placeholder="用户名" />
@@ -1434,6 +1610,49 @@ function SettingsModal({ config, prompts, status, onClose, onSubmit, onAddPrompt
       </DialogContent>
     </Dialog>
   );
+}
+
+function parseBitwardenExport(value: string): BitwardenExport {
+  const parsed = JSON.parse(value) as BitwardenExport;
+  if (parsed.encrypted) throw new Error("请选择 Bitwarden 未加密 JSON 导出文件");
+  if (!Array.isArray(parsed.items)) throw new Error("未找到 Bitwarden items 列表");
+  return parsed;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isBitwardenLoginItem(item: BitwardenItem): item is BitwardenItem & { login: NonNullable<BitwardenItem["login"]> } {
+  return Number(item.type) === 1 && Boolean(item.login);
+}
+
+function accountFingerprint(item: Pick<FavoriteItem, "title" | "content"> & { source_url?: string | null }) {
+  return [item.source_url || "", item.content || "", item.title || ""]
+    .map((part) => String(part).trim().toLowerCase())
+    .join("|");
+}
+
+function validDateString(value: unknown) {
+  if (typeof value !== "string") return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function buildBitwardenImportNote(uris: string[], folderName: string) {
+  const lines = ["Imported from Bitwarden"];
+  if (folderName) lines.push(`Folder: ${folderName}`);
+  if (uris.length > 1) {
+    lines.push("Additional URLs:");
+    lines.push(...uris.slice(1));
+  }
+  return lines.join("\n");
+}
+
+function waitForPaint() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+  });
 }
 
 function loadVaultPassword() {
