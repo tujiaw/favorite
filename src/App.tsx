@@ -20,7 +20,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  Settings,
   ShieldCheck,
   Sparkles,
   Star,
@@ -31,7 +30,7 @@ import {
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -135,11 +134,9 @@ export function App() {
   const [sortMode, setSortMode] = useState<SortMode>("updated_at");
   const [sortDesc, setSortDesc] = useState(true);
   const [contentEditing, setContentEditing] = useState(false);
-  const [moreMenu, setMoreMenu] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({ baseUrl: "", apiKey: "", model: "" });
   const [prompts, setPrompts] = useState<PromptConfig[]>([]);
-  const [aiMenu, setAiMenu] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSummaryVisible, setAiSummaryVisible] = useState(false);
   const [aiSummaryExpanded, setAiSummaryExpanded] = useState(false);
@@ -458,7 +455,6 @@ export function App() {
     clone.note = selectedItem.note;
     clone.favorite = selectedItem.favorite;
     await saveFavoriteFor(context, clone);
-    setMoreMenu(false);
     setStatus("已复制为新收藏");
     await refreshItems(context, clone.id);
   }
@@ -481,7 +477,6 @@ export function App() {
     link.download = `${safeFilename(selectedItem.title)}.md`;
     link.click();
     URL.revokeObjectURL(url);
-    setMoreMenu(false);
     setStatus("已导出 Markdown 文件");
   }
 
@@ -600,7 +595,6 @@ export function App() {
       setStatus(`AI 处理失败：${error.message}`);
     } finally {
       setAiLoading(false);
-      setAiMenu(false);
     }
   }
 
@@ -712,7 +706,6 @@ export function App() {
                       setSelectedId(item.id);
                       setPasswordVisible(false);
                       setContentEditing(false);
-                      setMoreMenu(false);
                       if (item.type === "account" && item.encrypted_secret && vaultPassword) {
                         try {
                           setRevealedSecret(await decryptSecret(vaultPassword, item.encrypted_secret));
@@ -732,11 +725,9 @@ export function App() {
         <DetailPanel
           item={selectedItem}
           contentEditing={contentEditing}
-          moreMenu={moreMenu}
           passwordVisible={passwordVisible}
           revealedSecret={revealedSecret}
           prompts={prompts}
-          aiMenu={aiMenu}
           aiLoading={aiLoading}
           aiSummary={selectedItem ? aiSummaryById[selectedItem.id] : ""}
           aiSummaryVisible={aiSummaryVisible}
@@ -754,8 +745,6 @@ export function App() {
           onContentDraft={updateContentDraft}
           onContentCommit={commitContentDraft}
           onToggleEdit={() => setContentEditing((value) => !value)}
-          onToggleMore={() => setMoreMenu((value) => !value)}
-          onToggleAiMenu={() => setAiMenu((value) => !value)}
           onRefreshAiSummary={refreshAiSummary}
           onRunAI={runAI}
           onCloseAiSummary={() => setAiSummaryVisible(false)}
@@ -1015,8 +1004,6 @@ function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: 
 function DetailPanel(props: {
   item: FavoriteItem | null;
   contentEditing: boolean;
-  moreMenu: boolean;
-  aiMenu: boolean;
   aiLoading: boolean;
   prompts: PromptConfig[];
   aiSummary?: string;
@@ -1037,8 +1024,6 @@ function DetailPanel(props: {
   onContentDraft: (value: string) => void;
   onContentCommit: (value: string) => void;
   onToggleEdit: () => void;
-  onToggleMore: () => void;
-  onToggleAiMenu: () => void;
   onRefreshAiSummary: () => void;
   onRunAI: (promptId: string) => void;
   onCloseAiSummary: () => void;
@@ -1069,7 +1054,7 @@ function DetailPanel(props: {
           <Card className="m-4 p-4">
             <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
               <KeyRound /> {item.title}
-              <Button variant="ghost" size="icon" style={{ marginLeft: "auto" }} onClick={props.onFavorite}><Heart fill={item.favorite ? "currentColor" : "none"} /></Button>
+              <Button variant="ghost" size="icon" className="ml-auto" onClick={props.onFavorite}><Heart fill={item.favorite ? "currentColor" : "none"} /></Button>
             </div>
             <div className="grid gap-3">
               <div className="grid gap-2">
@@ -1236,7 +1221,6 @@ function CreateModal(props: {
   onOpenVault: () => void;
   onCreateAccount: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  const isFavorite = props.modalTab === "favorite";
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="max-w-2xl">
@@ -1277,7 +1261,7 @@ function CreateModal(props: {
                   <Input name="url" placeholder="URL" />
                   <Input name="username" placeholder="用户名" />
                   <Input name="password" placeholder="密码" type="password" required />
-                  <Textarea name="note" placeholder="备注，可选" rows={2}></Textarea>
+                  <Textarea name="note" placeholder="备注，可选" rows={2} />
                 </div>
                 <DialogFooter className="mt-4">
                   <span className="mr-auto text-sm text-muted-foreground">敏感字段加密保存</span>
