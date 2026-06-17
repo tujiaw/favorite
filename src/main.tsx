@@ -1,8 +1,11 @@
-import { startApp } from "./src/controller.js";
-import { installIconSupport } from "./src/icons.js";
+import { createRoot } from "react-dom/client";
+import { App } from "./App";
+import "./styles.css";
+import { installIconSupport } from "./icons.js";
 
 installIconSupport();
-startApp(document.querySelector("#app"));
+
+createRoot(document.querySelector("#app") as HTMLElement).render(<App />);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

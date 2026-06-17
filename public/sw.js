@@ -7,7 +7,7 @@
 //       Cross-origin (esm.sh / Supabase): stale-while-revalidate
 //   - config.js: always network (env-specific)
 
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `favorite-shell-${VERSION}`;
 const RUNTIME_CACHE = `favorite-runtime-${VERSION}`;
 
@@ -16,20 +16,9 @@ const IS_DEV = ["localhost", "127.0.0.1"].includes(self.location.hostname);
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/app.js",
-  "/styles.css",
   "/manifest.webmanifest",
   "/icon.svg",
-  "/icon-maskable.svg",
-  "/src/controller.js",
-  "/src/templates.js",
-  "/src/state.js",
-  "/src/data.js",
-  "/src/crypto.js",
-  "/src/utils.js",
-  "/src/constants.js",
-  "/src/icons.js",
-  "/src/ai.js"
+  "/icon-maskable.svg"
 ];
 
 self.addEventListener("install", (event) => {

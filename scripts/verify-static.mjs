@@ -2,21 +2,23 @@ import { existsSync, readFileSync } from "node:fs";
 
 const requiredFiles = [
   "index.html",
-  "app.js",
-  "src/controller.js",
-  "src/templates.js",
+  "src/main.tsx",
+  "src/App.tsx",
   "src/data.js",
   "src/crypto.js",
   "src/utils.js",
   "src/state.js",
   "src/constants.js",
   "src/icons.js",
+  "src/styles.css",
   "styles.css",
   "config.js",
-  "manifest.webmanifest",
-  "icon.svg",
-  "icon-maskable.svg",
-  "sw.js",
+  "vite.config.ts",
+  "tsconfig.json",
+  "public/manifest.webmanifest",
+  "public/icon.svg",
+  "public/icon-maskable.svg",
+  "public/sw.js",
   "supabase/schema.sql",
   "docs/design/personal-favorite-center.md"
 ];
@@ -28,9 +30,8 @@ if (missing.length) {
 }
 
 const app = [
-  "app.js",
-  "src/controller.js",
-  "src/templates.js",
+  "src/main.tsx",
+  "src/App.tsx",
   "src/data.js",
   "src/crypto.js",
   "src/utils.js"
@@ -40,7 +41,7 @@ const app = [
 const requiredSnippets = [
   "signInWithOAuth",
   "auth.getUser",
-  "getAuthRedirectUrl",
+  "redirectTo",
   "encryptSecret",
   "decryptSecret",
   "classifyContent",

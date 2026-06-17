@@ -6,20 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev      # Start local dev server on port 3000 with hot reload
+npm run typecheck # Run TypeScript checks
 npm run build    # Verify static app and build to dist/
 ```
 
-The dev server generates `/config.js` on-the-fly from `.env.local` (or environment variables) and watches `index.html`, `app.js`, `styles.css`, `src/`, `manifest.webmanifest`, and `icon.svg` for live reload.
+The dev server is Vite. It serves `/config.js` from the project root for local runtime Supabase config and serves PWA assets from `public/`.
 
-Build copies static files to `dist/` and embeds Supabase config into `dist/config.js`. Verification checks for required files, OAuth/crypto/upload behavior markers, and RLS policies in the schema.
+Build runs the project verifier, uses Vite to create `dist/`, then writes environment-derived Supabase config into `dist/config.js`. Verification checks for required files, OAuth/crypto/upload behavior markers, and RLS policies in the schema.
 
 ## Architecture
 
-This is a **zero-build static PWA** using ES modules directly in the browser — no bundlers, no npm install. The browser fetches `@supabase/supabase-js@2` from esm.sh at runtime.
+This is a **Vite + React + TypeScript + Tailwind CSS static PWA**. The browser still fetches `@supabase/supabase-js@2` from esm.sh at runtime so Supabase remains environment-configurable.
 
 **Entry points:**
-- `app.js` - Installs icon support and starts the app
-- `src/controller.js` - App boot, render loop, event binding, user actions
+- `src/main.tsx` - React browser entry, style import, service worker registration
+- `src/App.tsx` - App boot, state management, React components, user actions
 - `src/state.js` - Global runtime state (user, items, filters, modals, vault)
 
 **Data layer (`src/data.js`):**
@@ -32,9 +33,9 @@ This is a **zero-build static PWA** using ES modules directly in the browser —
 - `decryptSecret(password, encrypted)` - Decrypt vault secrets
 - Used only for account record sensitive fields (password, recovery codes, private notes)
 
-**Templates (`src/templates.js`):**
-- Pure function templates returning HTML strings
-- All user input goes through `escapeHtml()` / `escapeAttr()` before rendering
+**UI (`src/App.tsx` + `styles.css`):**
+- React components own layout, modals, filters, vault, item detail, and AI settings
+- Existing CSS class names are retained for visual continuity, with Tailwind v4 available through `src/styles.css`
 
 **Utilities (`src/utils.js`):**
 - `classifyContent(value)` - Auto-detects link/json/code/text types

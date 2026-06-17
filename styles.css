@@ -1313,6 +1313,20 @@ svg {
   color: #5f6b7a;
 }
 
+.ghost-button:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+
+.danger-ghost {
+  color: #b4232a;
+}
+
+.danger-ghost:hover {
+  background: #fff1f2;
+  color: var(--red);
+}
+
 .image-preview {
   display: grid;
   flex: 1 1 auto;
@@ -1333,7 +1347,6 @@ svg {
 
 .vault-box,
 .empty-list,
-.vault-status,
 .prompt-item {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1372,6 +1385,44 @@ svg {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.vault-status {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #bed7ff;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  padding: 12px;
+}
+
+.vault-status-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.vault-status-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.vault-status-copy strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.vault-status-copy span {
+  overflow-wrap: anywhere;
+  color: #667085;
+  font-size: 13px;
 }
 
 .account-fields,
@@ -1456,6 +1507,10 @@ svg {
 .field-label {
   color: #6b7280;
   font-size: 13px;
+}
+
+.vault-modal .modal-actions {
+  justify-content: space-between;
 }
 
 .tab-tabs {
@@ -1627,5 +1682,14 @@ svg {
 
   .span-2 {
     grid-column: auto;
+  }
+
+  .vault-status {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .vault-status .ghost-button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }

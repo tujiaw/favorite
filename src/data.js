@@ -27,11 +27,19 @@ export function createBaseItem(input) {
 }
 
 export async function listFavorites() {
-  if (state.supabaseReady) {
-    const { data, error } = await state.supabase
+  return listFavoritesFor({
+    supabaseReady: state.supabaseReady,
+    supabase: state.supabase,
+    user: state.user
+  });
+}
+
+export async function listFavoritesFor(context) {
+  if (context.supabaseReady) {
+    const { data, error } = await context.supabase
       .from("favorites")
       .select("*")
-      .eq("user_id", state.user.id)
+      .eq("user_id", context.user.id)
       .order("updated_at", { ascending: false });
     if (error) {
       state.status = error.message;
@@ -40,13 +48,20 @@ export async function listFavorites() {
     return data || [];
   }
   return readLocal()
-    .filter((item) => item.user_id === state.user.id)
+    .filter((item) => item.user_id === context.user.id)
     .sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at));
 }
 
 export async function saveFavorite(item) {
-  if (state.supabaseReady) {
-    const { error } = await state.supabase.from("favorites").upsert(item);
+  return saveFavoriteFor({
+    supabaseReady: state.supabaseReady,
+    supabase: state.supabase
+  }, item);
+}
+
+export async function saveFavoriteFor(context, item) {
+  if (context.supabaseReady) {
+    const { error } = await context.supabase.from("favorites").upsert(item);
     if (error) throw error;
     return;
   }
@@ -58,8 +73,15 @@ export async function saveFavorite(item) {
 }
 
 export async function deleteFavorite(id) {
-  if (state.supabaseReady) {
-    const { error } = await state.supabase.from("favorites").delete().eq("id", id);
+  return deleteFavoriteFor({
+    supabaseReady: state.supabaseReady,
+    supabase: state.supabase
+  }, id);
+}
+
+export async function deleteFavoriteFor(context, id) {
+  if (context.supabaseReady) {
+    const { error } = await context.supabase.from("favorites").delete().eq("id", id);
     if (error) throw error;
     return;
   }
@@ -67,12 +89,19 @@ export async function deleteFavorite(id) {
 }
 
 export async function uploadImage(userId, itemId, file) {
+  return uploadImageFor({
+    supabaseReady: state.supabaseReady,
+    supabase: state.supabase
+  }, userId, itemId, file);
+}
+
+export async function uploadImageFor(context, userId, itemId, file) {
   const extension = file.name.split(".").pop() || "png";
   const path = `${userId}/${itemId}/image.${extension}`;
-  if (state.supabaseReady) {
-    const { error } = await state.supabase.storage.from("favorite-images").upload(path, file, { upsert: true });
+  if (context.supabaseReady) {
+    const { error } = await context.supabase.storage.from("favorite-images").upload(path, file, { upsert: true });
     if (error) throw error;
-    const { data } = state.supabase.storage.from("favorite-images").getPublicUrl(path);
+    const { data } = context.supabase.storage.from("favorite-images").getPublicUrl(path);
     return { path, publicUrl: data.publicUrl };
   }
   return {
