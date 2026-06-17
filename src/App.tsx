@@ -55,6 +55,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText
+} from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -668,14 +674,14 @@ export function App() {
             setSpecialFilter(null);
           }}
         />
-        <section className="min-h-0 border-r bg-background">
+        <section className="min-h-0 min-w-0 border-r bg-background">
           <Card className="flex h-full flex-col rounded-none border-0 border-r bg-card shadow-none">
             <CardHeader className="flex-row items-center justify-between space-y-0 border-b p-4">
               <CardTitle className="text-base">全部收藏 <span className="text-sm text-muted-foreground">{filteredItems.length}</span></CardTitle>
               <div className="flex items-center gap-2">
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">{sortLabel(sortMode)} <Chevron /></Button>
+                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+                    {sortLabel(sortMode)} <Chevron />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {(["updated_at", "use_count", "title"] as SortMode[]).map((mode) => (
@@ -695,7 +701,7 @@ export function App() {
                 <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 /></Button>
               </div>
             </CardHeader>
-            <ScrollArea className="min-h-0 flex-1">
+            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-3">
               <div className={viewMode === "grid" ? "grid gap-3 p-3 sm:grid-cols-2" : "grid gap-2 p-3"}>
                 {filteredItems.length ? filteredItems.map((item) => (
                   <ItemCard
@@ -854,7 +860,7 @@ function Topbar(props: {
   const subtitle = props.user.email || "本地演示模式";
   return (
     <header className="relative z-20 border-b bg-background/90 backdrop-blur">
-      <div className="grid h-16 grid-cols-[240px_minmax(260px,520px)_1fr_auto] items-center gap-3 px-4">
+      <div className="grid h-16 grid-cols-[minmax(160px,240px)_minmax(240px,1fr)_auto] items-center gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Archive /></div>
           <div>
@@ -862,23 +868,40 @@ function Topbar(props: {
             <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
-        <label className="flex h-9 min-w-0 items-center gap-2 rounded-md border bg-background px-3 text-muted-foreground">
-          <Search className="size-4" />
-          <Input placeholder="搜索收藏内容、标签、URL" value={props.query} onChange={(event) => props.onQuery(event.target.value)} />
-          <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[11px]">⌘ K</kbd>
-        </label>
+        <InputGroup className="h-9 rounded-xl bg-background">
+          <InputGroupAddon>
+            <Search className="size-4" />
+          </InputGroupAddon>
+          <InputGroupInput
+            aria-label="搜索收藏内容、标签、URL"
+            className="h-9 truncate"
+            placeholder="搜索收藏内容、标签、URL"
+            value={props.query}
+            onChange={(event) => props.onQuery(event.target.value)}
+          />
+          <InputGroupAddon align="inline-end">
+            <InputGroupText className="rounded-lg border bg-muted px-1.5 py-0.5 font-mono text-[11px] leading-none">⌘ K</InputGroupText>
+          </InputGroupAddon>
+        </InputGroup>
         <div className="flex min-w-0 items-center justify-end gap-2">
           <Button onClick={props.onCreate}><Plus /> 收藏</Button>
-          {props.installPromptEvent ? <Button variant="outline" onClick={props.onPromptInstall}><Grid3X3 /> 安装</Button> : null}
-          <Button variant="secondary" onClick={props.onSettings}><Sparkles /> AI 智能整理</Button>
+          <IconButtonWithTooltip label="AI 智能整理" variant="secondary" onClick={props.onSettings}><Sparkles /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="刷新同步" onClick={props.onRefresh}><RefreshCw /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="保险箱" variant={props.hasVault ? "secondary" : "ghost"} onClick={props.onOpenVault}><ShieldCheck /></IconButtonWithTooltip>
-          <IconButtonWithTooltip label="分享当前收藏" onClick={props.onShare}><Upload /></IconButtonWithTooltip>
-          <IconButtonWithTooltip label="快捷操作" onClick={props.onMenu}><Grid3X3 /></IconButtonWithTooltip>
           <ThemeToggle />
           <Badge variant="secondary" className="grid size-8 place-items-center rounded-full p-0" title={subtitle}>{(props.user.name || props.user.email || "用").slice(0, 1)}</Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="更多操作" />}>
+              <MoreVertical />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {props.installPromptEvent ? <DropdownMenuItem onClick={props.onPromptInstall}><Grid3X3 /> 安装应用</DropdownMenuItem> : null}
+              <DropdownMenuItem onClick={props.onShare}><Upload /> 分享当前收藏</DropdownMenuItem>
+              <DropdownMenuItem onClick={props.onMenu}><Grid3X3 /> 快捷操作</DropdownMenuItem>
+              <DropdownMenuItem onClick={props.onSignOut}><LogOut /> 退出登录</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <IconButtonWithTooltip label="退出登录" onClick={props.onSignOut}><LogOut /></IconButtonWithTooltip>
       </div>
     </header>
   );
@@ -891,10 +914,8 @@ function IconButtonWithTooltip({
 }: React.ComponentProps<typeof Button> & { label: string }) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button size="icon" variant="ghost" aria-label={label} {...props}>
-          {children}
-        </Button>
+      <TooltipTrigger render={<Button size="icon" variant="ghost" aria-label={label} {...props} />}>
+        {children}
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
@@ -941,9 +962,9 @@ function Sidebar(props: {
         <Separator />
         <div className="grid gap-2">
           <p className="px-2 text-xs font-medium text-muted-foreground">收藏管理</p>
-          <Button variant={props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="justify-between" onClick={() => props.onType("all")}><span className="inline-flex items-center gap-2"><Sparkles />全部收藏</span><strong>{props.items.length}</strong></Button>
-          <Button variant={props.specialFilter === "recent" ? "secondary" : "ghost"} className="justify-between" onClick={props.onRecent}><span className="inline-flex items-center gap-2"><Clock />最近使用</span><strong>{recentCount}</strong></Button>
-          <Button variant={props.favoriteOnly ? "secondary" : "ghost"} className="justify-between" onClick={props.onFavorite}><span className="inline-flex items-center gap-2"><Star />星标收藏</span><strong>{favoriteCount}</strong></Button>
+          <Button variant={props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="justify-between" onClick={() => props.onType("all")}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Sparkles />全部收藏</span><Badge variant="outline">{props.items.length}</Badge></Button>
+          <Button variant={props.specialFilter === "recent" ? "secondary" : "ghost"} className="justify-between" onClick={props.onRecent}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Clock />最近使用</span><Badge variant="outline">{recentCount}</Badge></Button>
+          <Button variant={props.favoriteOnly ? "secondary" : "ghost"} className="justify-between" onClick={props.onFavorite}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Star />星标收藏</span><Badge variant="outline">{favoriteCount}</Badge></Button>
         </div>
         <div className="grid gap-2">
           <p className="px-2 text-xs font-medium text-muted-foreground">分类</p>
@@ -951,7 +972,7 @@ function Sidebar(props: {
             const Icon = type === "link" ? Tag : TYPE_META[type].icon;
             return (
               <Button variant={props.typeFilter === type ? "secondary" : "ghost"} className="justify-between" key={type} onClick={() => props.onType(type)}>
-                <span className="inline-flex items-center gap-2"><Icon />{categoryLabel(type)}</span><strong>{props.typeCounts[type] || 0}</strong>
+                <span className="inline-flex min-w-0 items-center gap-2 truncate"><Icon />{categoryLabel(type)}</span><Badge variant="outline">{props.typeCounts[type] || 0}</Badge>
               </Button>
             );
           })}
@@ -962,7 +983,7 @@ function Sidebar(props: {
           <div className="flex flex-wrap gap-2">
           {props.tags.length ? props.tags.slice(0, 8).map(([tag, count]) => (
             <Button variant={props.tagFilter === tag ? "default" : "secondary"} size="sm" key={tag} onClick={() => props.onTag(tag)}>
-              {tag} <strong>{count}</strong>
+              <span className="max-w-[92px] truncate">{tag}</span><Badge variant="outline">{count}</Badge>
             </Button>
           )) : <Badge variant="outline">暂无标签</Badge>}
           {props.tagFilter ? <Button variant="ghost" size="sm" onClick={() => props.onTag(null)}>清除</Button> : null}
@@ -977,23 +998,26 @@ function Sidebar(props: {
 function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: boolean; onSelect: () => void }) {
   const Icon = TYPE_META[item.type]?.icon || FileText;
   return (
-    <Button variant="ghost" className="h-auto w-full p-0 text-left" onClick={onSelect}>
-      <Card className={selected ? "w-full border-primary ring-1 ring-primary" : "w-full"}>
-      <CardContent className="grid gap-3 p-3">
-      <div className="flex w-full items-start justify-between gap-3">
-        <div className="flex min-w-0 gap-3">
+    <Button variant="ghost" className="h-auto w-full min-w-0 whitespace-normal p-0 text-left" onClick={onSelect}>
+      <Card className={selected ? "w-full min-w-0 overflow-hidden border-primary ring-1 ring-primary" : "w-full min-w-0 overflow-hidden"}>
+      <CardContent className="grid min-w-0 gap-3 p-3">
+      <div className="flex w-full min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 gap-3">
           <Badge variant="secondary" className="grid size-8 shrink-0 place-items-center p-0"><Icon /></Badge>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-medium">{item.title} <span className="ml-1 text-xs text-muted-foreground">{TYPE_META[item.type].label}</span></h2>
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.preview || item.content}</p>
+          <div className="min-w-0 flex-1">
+            <h2 className="flex min-w-0 items-center gap-1 text-sm font-medium">
+              <span className="min-w-0 truncate">{item.title}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{TYPE_META[item.type].label}</span>
+            </h2>
+            <p className="mt-1 line-clamp-2 break-all text-xs leading-5 text-muted-foreground">{item.preview || item.content}</p>
           </div>
         </div>
         {item.favorite ? <Star className="size-4 shrink-0 text-primary" fill="currentColor" /> : null}
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        {item.domain ? <span>{item.domain}</span> : null}
-        {item.tags.filter((tag) => !isSystemTag(tag)).map((tag) => <Badge variant="outline" key={tag}>{tag}</Badge>)}
-        <span>{formatListDate(item.last_used_at || item.created_at)}</span>
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
+        {item.domain ? <span className="min-w-0 max-w-[120px] truncate">{item.domain}</span> : null}
+        {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => <Badge variant="outline" className="max-w-[96px] shrink-0 truncate" key={tag}>{tag}</Badge>)}
+        <span className="shrink-0">{formatListDate(item.last_used_at || item.created_at)}</span>
       </div>
       </CardContent>
       </Card>
@@ -1092,8 +1116,8 @@ function DetailPanel(props: {
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={props.onFavorite}><Star fill={item.favorite ? "currentColor" : "none"} /> 收藏</Button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon"><MoreVertical /></Button>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}>
+                <MoreVertical />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={props.onDuplicate}><Copy /> 复制为新收藏</DropdownMenuItem>
@@ -1145,8 +1169,8 @@ function DetailPanel(props: {
             {item.type !== "image" ? (
               <div>
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline"><Sparkles /> AI <Chevron /></Button>
+                  <DropdownMenuTrigger render={<Button variant="outline" />}>
+                    <Sparkles /> AI <Chevron />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={props.onRefreshAiSummary} disabled={props.aiLoading}>
@@ -1161,7 +1185,7 @@ function DetailPanel(props: {
                 </DropdownMenu>
               </div>
             ) : null}
-            {item.source_url ? <Button asChild variant="outline"><a href={item.source_url} target="_blank" rel="noreferrer"><ExternalLink /> 打开</a></Button> : null}
+            {item.source_url ? <Button render={<a href={item.source_url} target="_blank" rel="noreferrer" />} variant="outline"><ExternalLink /> 打开</Button> : null}
           </div>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -1294,7 +1318,7 @@ function VaultModal({ expiresAt, onClose, onSubmit, onClear }: {
           <Card className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 p-3">
             <div className="grid size-9 place-items-center rounded-md bg-primary/10 text-primary"><ShieldCheck /></div>
             <div className="grid gap-1">
-              <strong>保险箱已启用</strong>
+              <CardTitle className="text-sm">保险箱已启用</CardTitle>
               <span className="text-sm text-muted-foreground">有效期至 {new Date(expiresAt).toLocaleString("zh-CN")}</span>
             </div>
             <Button variant="destructive" type="button" onClick={onClear}><Trash2 /> 清除</Button>
