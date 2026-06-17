@@ -1,6 +1,7 @@
 import {
   Archive,
   Check,
+  ChevronDown,
   Clock,
   Code,
   Copy,
@@ -680,8 +681,9 @@ export function App() {
               <CardTitle className="text-base">全部收藏 <span className="text-sm text-muted-foreground">{filteredItems.length}</span></CardTitle>
               <div className="flex items-center gap-2">
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-                    {sortLabel(sortMode)} <Chevron />
+                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="gap-1.5" />}>
+                    <span>{sortLabel(sortMode)}</span>
+                    <ChevronDown className="size-3.5 opacity-70" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {(["updated_at", "use_count", "title"] as SortMode[]).map((mode) => (
@@ -860,7 +862,7 @@ function Topbar(props: {
   const subtitle = props.user.email || "本地演示模式";
   return (
     <header className="relative z-20 border-b bg-background/90 backdrop-blur">
-      <div className="grid h-16 grid-cols-[minmax(160px,240px)_minmax(240px,1fr)_auto] items-center gap-3 px-4">
+      <div className="grid h-16 grid-cols-[minmax(160px,240px)_minmax(220px,380px)_1fr] items-center gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Archive /></div>
           <div>
@@ -868,7 +870,7 @@ function Topbar(props: {
             <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
-        <InputGroup className="h-9 rounded-xl bg-background">
+        <InputGroup className="h-9 w-full max-w-[380px] rounded-xl bg-background">
           <InputGroupAddon>
             <Search className="size-4" />
           </InputGroupAddon>
@@ -1169,8 +1171,10 @@ function DetailPanel(props: {
             {item.type !== "image" ? (
               <div>
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="outline" />}>
-                    <Sparkles /> AI <Chevron />
+                  <DropdownMenuTrigger render={<Button variant="outline" className="gap-1.5" />}>
+                    <Sparkles />
+                    <span>AI</span>
+                    <ChevronDown className="size-3.5 opacity-70" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={props.onRefreshAiSummary} disabled={props.aiLoading}>
@@ -1645,10 +1649,6 @@ function inlineMarkdown(value: string) {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
-}
-
-function Chevron() {
-  return <span aria-hidden="true">⌄</span>;
 }
 
 function HomeIcon() {
