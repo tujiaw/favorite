@@ -7,7 +7,3 @@ artifacts/
 .env.example
 config.example.js
 config.local.js
-
-# Ignore development files
-docs/
-supabase/

@@ -74,6 +74,66 @@ npm run build
 
 `typecheck` 会执行 TypeScript 校验；`build` 会检查关键文件、OAuth/加密/图片上传行为标记和 Supabase RLS SQL，然后由 Vite 生成 `dist/`。
 
+## Vercel 部署
+
+项目已包含 `vercel.json`，Vercel 会执行：
+
+```bash
+npm run build
+```
+
+并将 `dist/` 作为静态输出目录发布。
+
+### 环境变量
+
+在 Vercel Project Settings -> Environment Variables 中配置：
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+构建完成时，`scripts/build-static.mjs` 会根据这些环境变量生成 `dist/config.js`。如果环境变量为空，应用会进入本地演示模式。
+
+### Supabase 初始化
+
+首次部署前，在 Supabase SQL Editor 执行：
+
+```text
+supabase/schema.sql
+```
+
+这会创建收藏表、通用配置表、图片存储桶和 RLS 策略。
+
+### OAuth 回调
+
+在 Supabase Auth URL Configuration 中加入 Vercel 域名：
+
+```text
+https://your-app.vercel.app/
+```
+
+如果使用自定义域名，也需要加入：
+
+```text
+https://your-domain.com/
+```
+
+GitHub OAuth App 的 Authorization callback URL 仍填写 Supabase 回调地址：
+
+```text
+https://你的项目 ref.supabase.co/auth/v1/callback
+```
+
+### PWA 与缓存
+
+`vercel.json` 已配置：
+
+- SPA fallback，刷新页面不会 404。
+- `/config.js` 使用 `no-store`，避免环境配置被浏览器长期缓存。
+- `/sw.js` 使用 `no-cache`，方便 PWA Service Worker 更新。
+- `/assets/*` 使用长期 immutable 缓存。
+
 ## UI 与主题
 
 - shadcn/ui 组件位于 `src/components/ui/`，包括 Button、Input、Textarea、Dialog、AlertDialog、Select、Tabs、Dropdown Menu、Tooltip、ScrollArea、Badge、Card、Label、Separator。
