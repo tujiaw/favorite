@@ -153,7 +153,8 @@ export function App() {
   const [specialFilter, setSpecialFilter] = useState<"recent" | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [status, setStatus] = useState("");
+  const [status, setStatusValue] = useState("");
+  const [toastStatus, setToastStatus] = useState("");
   const [quickInput, setQuickInput] = useState("");
   const [booted, setBooted] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -182,8 +183,23 @@ export function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bitwardenFileInputRef = useRef<HTMLInputElement>(null);
   const draftTimers = useRef(new Map<string, number>());
+  const statusToastTimer = useRef<number | null>(null);
 
   const context = useMemo(() => ({ supabaseReady, supabase, user }), [supabaseReady, supabase, user]);
+
+  function setStatus(nextStatus: string) {
+    setStatusValue(nextStatus);
+    setToastStatus(nextStatus);
+    if (statusToastTimer.current) window.clearTimeout(statusToastTimer.current);
+    if (!nextStatus) {
+      statusToastTimer.current = null;
+      return;
+    }
+    statusToastTimer.current = window.setTimeout(() => {
+      setToastStatus("");
+      statusToastTimer.current = null;
+    }, 3500);
+  }
 
   useEffect(() => {
     boot();
@@ -193,6 +209,7 @@ export function App() {
       window.removeEventListener("beforeinstallprompt", captureInstallPrompt as EventListener);
       window.removeEventListener("appinstalled", clearInstallPrompt);
       draftTimers.current.forEach((timer) => window.clearTimeout(timer));
+      if (statusToastTimer.current) window.clearTimeout(statusToastTimer.current);
     };
   }, []);
 
@@ -811,6 +828,10 @@ export function App() {
     return <LoginScreen onSignIn={signIn} />;
   }
 
+  const workspaceGridClass = sidebarCollapsed
+    ? "grid min-h-0 overflow-hidden grid-cols-[72px_minmax(320px,clamp(360px,36vw,560px))_minmax(360px,1fr)] max-lg:grid-cols-[72px_minmax(300px,0.95fr)_minmax(320px,1.2fr)] max-md:grid-cols-1 max-md:overflow-auto max-md:[&>aside:first-child]:hidden"
+    : "grid min-h-0 overflow-hidden grid-cols-[clamp(220px,18vw,280px)_minmax(320px,clamp(340px,32vw,520px))_minmax(360px,1fr)] max-xl:grid-cols-[clamp(200px,20vw,240px)_minmax(300px,clamp(320px,34vw,440px))_minmax(320px,1fr)] max-lg:grid-cols-[minmax(280px,0.95fr)_minmax(320px,1.2fr)] max-lg:[&>aside:first-child]:hidden max-md:grid-cols-1 max-md:overflow-auto";
+
   return (
     <TooltipProvider>
     <main className="grid h-full grid-rows-[64px_minmax(0,1fr)] bg-background text-foreground">
@@ -836,7 +857,7 @@ export function App() {
         onPromptInstall={promptInstall}
         onSignOut={signOut}
       />
-      <div className={sidebarCollapsed ? "grid min-h-0 grid-cols-[72px_minmax(0,1fr)_minmax(360px,520px)]" : "grid min-h-0 grid-cols-[260px_minmax(360px,440px)_minmax(0,1fr)]"}>
+      <div className={workspaceGridClass}>
         <Sidebar
           collapsed={sidebarCollapsed}
           items={items}
@@ -966,7 +987,6 @@ export function App() {
           }}
         />
       </div>
-      <p className="fixed bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-full border bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">收藏中心提供的内容仅供个人整理与复用，敏感字段会在浏览器端加密。</p>
       {createModal ? (
         <CreateModal
           modalTab={modalTab}
@@ -1022,7 +1042,7 @@ export function App() {
           onDeletePrompt={deletePromptRow}
         />
       ) : null}
-      {status ? <Card className="fixed bottom-3 right-4 z-50 px-3 py-2 text-xs text-muted-foreground shadow-md">{status}</Card> : null}
+      {toastStatus ? <Card className="fixed bottom-3 right-4 z-50 px-3 py-2 text-xs text-muted-foreground shadow-md">{toastStatus}</Card> : null}
     </main>
     </TooltipProvider>
   );
@@ -1068,7 +1088,7 @@ function Topbar(props: {
   const subtitle = props.user.email || "本地演示模式";
   return (
     <header className="relative z-20 border-b bg-background/90 backdrop-blur">
-      <div className="grid h-16 grid-cols-[minmax(160px,240px)_minmax(220px,380px)_1fr] items-center gap-3 px-4">
+      <div className="grid h-16 grid-cols-[minmax(150px,clamp(160px,18vw,240px))_minmax(220px,clamp(260px,30vw,420px))_minmax(0,1fr)] items-center gap-3 px-4 max-md:grid-cols-[minmax(120px,1fr)_auto] max-md:px-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"><Archive /></div>
           <div>
@@ -1076,7 +1096,7 @@ function Topbar(props: {
             <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
-        <InputGroup className="h-9 w-full max-w-[380px] rounded-xl bg-background">
+        <InputGroup className="h-9 w-full rounded-xl bg-background max-md:hidden">
           <InputGroupAddon>
             <Search className="size-4" />
           </InputGroupAddon>
@@ -1099,7 +1119,7 @@ function Topbar(props: {
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
-        <div className="flex min-w-0 items-center justify-end gap-2">
+        <div className="flex min-w-0 items-center justify-end gap-2 max-md:gap-1">
           <Button onClick={props.onCreate}><Plus /> 收藏</Button>
           <IconButtonWithTooltip label="AI 智能整理" variant="secondary" onClick={props.onSettings}><Sparkles /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="刷新同步" onClick={props.onRefresh}><RefreshCw /></IconButtonWithTooltip>
