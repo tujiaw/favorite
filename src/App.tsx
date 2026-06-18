@@ -692,6 +692,15 @@ export function App() {
     }
   }
 
+  async function copyAccountUsername() {
+    if (!selectedItem?.content) {
+      setStatus("当前账号没有可复制的用户名");
+      return;
+    }
+    await copyText(selectedItem.content);
+    await markItemUsed(selectedItem);
+  }
+
   async function duplicateSelected() {
     if (!selectedItem || !user) return;
     const clone = createBaseItem({
@@ -952,11 +961,11 @@ export function App() {
         />
         <section className="min-h-0 min-w-0 border-r bg-background">
           <Card className="flex h-full flex-col rounded-none border-0 border-r bg-card shadow-none">
-            <CardHeader className="!flex flex-nowrap items-center justify-between gap-2 space-y-0 border-b px-3 py-2.5">
-              <CardTitle className="shrink-0 whitespace-nowrap text-base">全部收藏 <span className="text-sm text-muted-foreground">{filteredItems.length}</span></CardTitle>
-              <div className="flex shrink-0 items-center gap-2">
+            <CardHeader className="!flex flex-nowrap items-center justify-between gap-1.5 space-y-0 border-b px-2 py-1">
+              <CardTitle className="shrink-0 whitespace-nowrap text-sm">全部收藏 <span className="text-xs text-muted-foreground">{filteredItems.length}</span></CardTitle>
+              <div className="flex shrink-0 items-center gap-1">
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="gap-1.5" />}>
+                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" />}>
                     <span>{sortLabel(sortMode)}</span>
                     <ChevronDown className="size-3.5 opacity-70" />
                   </DropdownMenuTrigger>
@@ -974,12 +983,12 @@ export function App() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" title="列表视图" onClick={() => setViewMode("list")}><List /></Button>
-                <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 /></Button>
+                <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="size-7" title="列表视图" onClick={() => setViewMode("list")}><List className="size-4" /></Button>
+                <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" className="size-7" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 className="size-4" /></Button>
               </div>
             </CardHeader>
-            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-2">
-              <div className={viewMode === "grid" ? "grid gap-2 p-2 sm:grid-cols-2" : "grid gap-1.5 p-2"}>
+            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-1">
+              <div className={viewMode === "grid" ? "grid gap-1 p-1 sm:grid-cols-2" : "grid gap-0.5 p-1"}>
                 {filteredItems.length ? filteredItems.map((item) => (
                   <ItemCard
                     item={item}
@@ -1040,6 +1049,7 @@ export function App() {
           onApplyAiSummary={() => selectedItem && aiSummaryById[selectedItem.id] && updateSelected({ content: aiSummaryById[selectedItem.id], preview: makePreview(aiSummaryById[selectedItem.id]) })}
           onToggleAiSummary={() => setAiSummaryExpanded((value) => !value)}
           onTogglePassword={togglePassword}
+          onCopyUsername={copyAccountUsername}
           onCopyPassword={copyAccountPassword}
           onOpen={async (url, copyBeforeOpen) => {
             if (copyBeforeOpen) await copyText(copyBeforeOpen);
@@ -1329,21 +1339,21 @@ function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: 
   return (
     <Button variant="ghost" className="h-auto w-full min-w-0 whitespace-normal p-0 text-left" onClick={onSelect}>
       <Card className={selected ? "w-full min-w-0 overflow-hidden border-primary ring-1 ring-primary" : "w-full min-w-0 overflow-hidden"}>
-      <CardContent className="grid min-w-0 gap-2 p-2.5">
-      <div className="flex w-full min-w-0 items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-1 gap-2.5">
-          <Badge variant="secondary" className="grid size-7 shrink-0 place-items-center p-0"><Icon className="size-3.5" /></Badge>
+      <CardContent className="grid min-w-0 gap-1 px-1 py-1">
+      <div className="flex w-full min-w-0 items-start justify-between gap-1">
+        <div className="flex min-w-0 flex-1 gap-1">
+          <Badge variant="secondary" className="grid size-5 shrink-0 place-items-center p-0"><Icon className="size-3" /></Badge>
           <div className="min-w-0 flex-1">
             <h2 className="flex min-w-0 items-center gap-1 text-sm font-medium">
               <span className="min-w-0 truncate">{item.title}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{TYPE_META[item.type].label}</span>
             </h2>
-            <p className="mt-0.5 line-clamp-2 break-all text-xs leading-4 text-muted-foreground">{item.preview || item.content}</p>
+            <p className="mt-0.5 line-clamp-1 break-all text-xs leading-4 text-muted-foreground">{item.preview || item.content}</p>
           </div>
         </div>
-        {item.favorite ? <Star className="size-4 shrink-0 text-primary" fill="currentColor" /> : null}
+        {item.favorite ? <Star className="size-3 shrink-0 text-primary" fill="currentColor" /> : null}
       </div>
-      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-xs text-muted-foreground">
+      <div className="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-muted-foreground">
         {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => <Badge variant="outline" className="max-w-[96px] shrink-0 truncate px-1.5 py-0" key={tag}>{tag}</Badge>)}
         <span className="shrink-0">{formatListDate(item.last_used_at || item.created_at)}</span>
       </div>
@@ -1383,6 +1393,7 @@ function DetailPanel(props: {
   onApplyAiSummary: () => void;
   onToggleAiSummary: () => void;
   onTogglePassword: () => void;
+  onCopyUsername: () => void;
   onCopyPassword: () => void;
   onOpen: (url: string, copyBeforeOpen?: string) => void;
 }) {
@@ -1433,7 +1444,10 @@ function DetailPanel(props: {
               </div>
               <div className="grid gap-2">
                 <Label>用户名</Label>
-                <Input value={item.content} readOnly />
+                <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
+                  <Input value={item.content} readOnly />
+                  <Button variant="outline" size="icon" disabled={!item.content} title="复制用户名" onClick={props.onCopyUsername}><Copy /></Button>
+                </div>
               </div>
               {item.encrypted_secret ? (
                 <div className="grid gap-2">
@@ -1543,10 +1557,12 @@ function DetailPanel(props: {
             </DropdownMenu>
           </div>
         </div>
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><FileText className="size-3" /> 创建于 {formatDetailDate(item.created_at)}</span>
-          <span className="inline-flex items-center gap-1"><Clock className="size-3" /> 更新于 {formatDetailDate(item.updated_at || item.created_at)}</span>
-          <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3" /> {item.encrypted_secret ? "已加密" : "未加密"}</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-1"><FileText className="size-3" /> 创建于 {formatDetailDate(item.created_at)}</span>
+            <span className="inline-flex items-center gap-1"><Clock className="size-3" /> 更新于 {formatDetailDate(item.updated_at || item.created_at)}</span>
+          </div>
+          <span className="shrink-0">共 {String(item.content || "").trim().length} 字</span>
         </div>
         {item.type === "image" ? (
           <Card className="grid min-h-[280px] place-items-center overflow-hidden bg-muted p-3"><img className="max-h-[420px] max-w-full object-contain" src={item.content} alt={item.title} /></Card>
@@ -1559,8 +1575,7 @@ function DetailPanel(props: {
             <article className="grid gap-3 whitespace-pre-wrap text-sm leading-7 text-foreground [&_a]:text-primary [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.content) }} />
           </Card>
         )}
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>共 {String(item.content || "").trim().length} 字</span>
+        <div className="flex items-center justify-end text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1"><Check className="size-3" /> 自动保存成功</span>
         </div>
         {props.aiSummaryVisible && props.aiSummary ? (
@@ -1624,10 +1639,12 @@ function CreateModal(props: {
               onPaste={props.onPaste}
             />
             <div className="mt-3 flex items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">{props.status}</p>
+              <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{props.status}</p>
               <Input className="hidden" type="file" accept="image/*" ref={props.fileInputRef} onChange={(event) => props.onImage(event.target.files?.[0])} />
-              <Button variant="ghost" size="icon" title="添加图片" onClick={() => props.fileInputRef.current?.click()}><Image /></Button>
-              <Button onClick={props.onSaveQuick}><Plus /> 保存</Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button variant="outline" size="icon" title="添加图片" onClick={() => props.fileInputRef.current?.click()}><Image /></Button>
+                <Button onClick={props.onSaveQuick}><Plus /> 保存</Button>
+              </div>
             </div>
           </TabsContent>
           <TabsContent value="account">
