@@ -2,6 +2,7 @@ import { state } from "./state.js";
 import { fileToDataUrl } from "./utils.js";
 
 const STORAGE_KEY = "favorite-center-items";
+const SETTINGS_STORAGE_KEY = "favorite-app-settings";
 
 export function createBaseItem(input) {
   const now = new Date().toISOString();
@@ -110,6 +111,46 @@ export async function uploadImageFor(context, userId, itemId, file) {
   };
 }
 
+/**
+ * @param {any} context
+ * @param {string} key
+ * @param {any} fallback
+ */
+export async function loadSettingFor(context, key, fallback = null) {
+  if (context.supabaseReady) {
+    const { data, error } = await context.supabase
+      .from("app_settings")
+      .select("value")
+      .eq("user_id", context.user.id)
+      .eq("setting_key", key)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.value ?? fallback;
+  }
+  return readLocalSettings()[key] ?? fallback;
+}
+
+/**
+ * @param {any} context
+ * @param {string} key
+ * @param {any} value
+ */
+export async function saveSettingFor(context, key, value) {
+  if (context.supabaseReady) {
+    const { error } = await context.supabase.from("app_settings").upsert({
+      user_id: context.user.id,
+      setting_key: key,
+      value,
+      updated_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    return;
+  }
+  const settings = readLocalSettings();
+  settings[key] = value;
+  writeLocalSettings(settings);
+}
+
 function readLocal() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -120,4 +161,16 @@ function readLocal() {
 
 function writeLocal(items) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+function readLocalSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalSettings(settings) {
+  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }

@@ -45,6 +45,40 @@ create index if not exists favorites_user_updated_idx on public.favorites (user_
 create index if not exists favorites_user_type_idx on public.favorites (user_id, type);
 create index if not exists favorites_tags_idx on public.favorites using gin (tags);
 
+create table if not exists public.app_settings (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  setting_key text not null,
+  value jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, setting_key)
+);
+
+alter table public.app_settings enable row level security;
+
+drop policy if exists "app_settings_select_own" on public.app_settings;
+create policy "app_settings_select_own"
+on public.app_settings for select
+using (auth.uid() = user_id);
+
+drop policy if exists "app_settings_insert_own" on public.app_settings;
+create policy "app_settings_insert_own"
+on public.app_settings for insert
+with check (auth.uid() = user_id);
+
+drop policy if exists "app_settings_update_own" on public.app_settings;
+create policy "app_settings_update_own"
+on public.app_settings for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "app_settings_delete_own" on public.app_settings;
+create policy "app_settings_delete_own"
+on public.app_settings for delete
+using (auth.uid() = user_id);
+
+create index if not exists app_settings_user_updated_idx on public.app_settings (user_id, updated_at desc);
+
 insert into storage.buckets (id, name, public)
 values ('favorite-images', 'favorite-images', true)
 on conflict (id) do nothing;

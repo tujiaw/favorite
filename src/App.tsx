@@ -5,6 +5,7 @@ import {
   Clock,
   Code,
   Copy,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
@@ -77,7 +78,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ThemeToggle } from "@/components/theme-toggle";
 import { loadLLMConfig, loadPrompts, runPrompt, saveLLMConfig, savePrompts } from "./ai.js";
 import { decryptSecret, encryptSecret } from "./crypto.js";
-import { createBaseItem, deleteFavoriteFor, listFavoritesFor, saveFavoriteFor, uploadImageFor } from "./data.js";
+import { createBaseItem, deleteFavoriteFor, listFavoritesFor, loadSettingFor, saveFavoriteFor, saveSettingFor, uploadImageFor } from "./data.js";
 import { localUser, setSessionUser, state as legacyState } from "./state.js";
 import { classifyContent, domainFromUrl, makePreview, titleFromContent, withTimeout } from "./utils.js";
 
@@ -138,6 +139,8 @@ const TYPE_META: Record<FavoriteType | "all", { label: string; icon: typeof Spar
   json: { label: "JSON", icon: Code },
   account: { label: "账号", icon: KeyRound }
 };
+const LLM_CONFIG_SETTING_KEY = "llm-config";
+const PROMPTS_SETTING_KEY = "prompts";
 
 export function App() {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -175,6 +178,7 @@ export function App() {
   const [aiSummaryExpanded, setAiSummaryExpanded] = useState(false);
   const [aiSummaryById, setAiSummaryById] = useState<Record<string, string>>({});
   const [installPromptEvent, setInstallPromptEvent] = useState<any>(null);
+  const [isInstalledPwa, setIsInstalledPwa] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bitwardenFileInputRef = useRef<HTMLInputElement>(null);
   const draftTimers = useRef(new Map<string, number>());
@@ -206,6 +210,7 @@ export function App() {
   }, [items, llmConfig, prompts, selectedId, supabase, supabaseReady, user, vaultExpiresAt, vaultPassword]);
 
   async function boot() {
+    setIsInstalledPwa(isRunningAsPwa());
     const savedVault = loadVaultPassword();
     const savedConfig = loadLLMConfig();
     const savedPrompts = loadPrompts();
@@ -219,11 +224,13 @@ export function App() {
 
     if (new URLSearchParams(window.location.search).get("demo") === "1") {
       const local = localUser();
+      const nextContext = { supabaseReady: false, supabase: null, user: local };
       setUser(local);
       setSupabaseReady(false);
       setBooted(true);
       setIsLoadingAuth(false);
-      await refreshItems({ supabaseReady: false, supabase: null, user: local }, null);
+      await refreshSettings(nextContext, savedConfig, savedPrompts);
+      await refreshItems(nextContext, null);
       return;
     }
 
@@ -232,10 +239,12 @@ export function App() {
     setSupabaseReady(ready);
     if (!ready) {
       const local = localUser();
+      const nextContext = { supabaseReady: false, supabase: null, user: local };
       setUser(local);
       setBooted(true);
       setIsLoadingAuth(false);
-      await refreshItems({ supabaseReady: false, supabase: null, user: local }, null);
+      await refreshSettings(nextContext, savedConfig, savedPrompts);
+      await refreshItems(nextContext, null);
       return;
     }
 
@@ -251,7 +260,11 @@ export function App() {
         const nextUser = legacyState.user as AppUser | null;
         setUser(nextUser);
         setIsLoadingAuth(false);
-        if (nextUser) await refreshItems({ supabaseReady: true, supabase: client, user: nextUser }, null);
+        if (nextUser) {
+          const nextContext = { supabaseReady: true, supabase: client, user: nextUser };
+          await refreshSettings(nextContext, savedConfig, savedPrompts);
+          await refreshItems(nextContext, null);
+        }
       });
       legacyState.authSubscription = subscription;
       const {
@@ -265,14 +278,20 @@ export function App() {
       setSessionUser(authUser ?? null);
       const nextUser = legacyState.user as AppUser | null;
       setUser(nextUser);
-      if (nextUser) await refreshItems({ supabaseReady: true, supabase: client, user: nextUser }, null);
+      if (nextUser) {
+        const nextContext = { supabaseReady: true, supabase: client, user: nextUser };
+        await refreshSettings(nextContext, savedConfig, savedPrompts);
+        await refreshItems(nextContext, null);
+      }
     } catch (error) {
       console.error("Supabase SDK 加载失败:", error);
       const local = localUser();
+      const nextContext = { supabaseReady: false, supabase: null, user: local };
       setSupabaseReady(false);
       setUser(local);
       setStatus("Supabase SDK 加载失败，已切换到本地模式");
-      await refreshItems({ supabaseReady: false, supabase: null, user: local }, null);
+      await refreshSettings(nextContext, savedConfig, savedPrompts);
+      await refreshItems(nextContext, null);
     } finally {
       setBooted(true);
       setIsLoadingAuth(false);
@@ -286,6 +305,8 @@ export function App() {
 
   function clearInstallPrompt() {
     setInstallPromptEvent(null);
+    setIsInstalledPwa(true);
+    setStatus("应用已安装");
   }
 
   async function refreshItems(nextContext = context, preferredId: string | null = selectedId) {
@@ -297,6 +318,25 @@ export function App() {
       if (target && nextItems.some((item) => item.id === target)) return target;
       return nextItems[0]?.id || null;
     });
+  }
+
+  async function refreshSettings(
+    nextContext = context,
+    fallbackConfig: LLMConfig = loadLLMConfig(),
+    fallbackPrompts: PromptConfig[] = loadPrompts()
+  ) {
+    if (!nextContext.user) return;
+    try {
+      const nextConfig = normalizeLLMConfig(await loadSettingFor(nextContext, LLM_CONFIG_SETTING_KEY, fallbackConfig));
+      const nextPrompts = normalizePrompts(await loadSettingFor(nextContext, PROMPTS_SETTING_KEY, fallbackPrompts));
+      setLlmConfig(nextConfig);
+      setPrompts(nextPrompts);
+      const bridgeState = legacyState as any;
+      bridgeState.llmConfig = nextConfig;
+      bridgeState.prompts = nextPrompts;
+    } catch (error: any) {
+      setStatus(`配置加载失败：${error.message}`);
+    }
   }
 
   const filteredItems = useMemo(() => {
@@ -668,14 +708,26 @@ export function App() {
   }
 
   async function promptInstall() {
-    if (!installPromptEvent) return;
+    if (isInstalledPwa) {
+      setStatus("应用已安装");
+      return;
+    }
+    if (!installPromptEvent) {
+      setStatus("当前浏览器暂未提供安装入口，可通过浏览器菜单安装此应用");
+      return;
+    }
     installPromptEvent.prompt();
     const { outcome } = await installPromptEvent.userChoice;
     setInstallPromptEvent(null);
-    if (outcome !== "accepted") setStatus("已取消安装");
+    if (outcome === "accepted") {
+      setIsInstalledPwa(true);
+      setStatus("应用安装已开始");
+    } else {
+      setStatus("已取消安装");
+    }
   }
 
-  function saveSettings(event: FormEvent<HTMLFormElement>) {
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const nextConfig = {
@@ -692,8 +744,14 @@ export function App() {
     setPrompts(nextPrompts);
     saveLLMConfig(nextConfig);
     savePrompts(nextPrompts);
-    setSettingsModal(false);
-    setStatus("设置已保存");
+    try {
+      await saveSettingFor(context, LLM_CONFIG_SETTING_KEY, nextConfig);
+      await saveSettingFor(context, PROMPTS_SETTING_KEY, nextPrompts);
+      setSettingsModal(false);
+      setStatus(supabaseReady ? "设置已保存到 Supabase" : "设置已保存到本地");
+    } catch (error: any) {
+      setStatus(`设置保存失败：${error.message}`);
+    }
   }
 
   function addPromptRow() {
@@ -761,6 +819,7 @@ export function App() {
         query={query}
         hasVault={Boolean(vaultPassword)}
         installPromptEvent={installPromptEvent}
+        isInstalledPwa={isInstalledPwa}
         onQuery={setQuery}
         onCreate={() => {
           setCreateModal(true);
@@ -817,9 +876,9 @@ export function App() {
         />
         <section className="min-h-0 min-w-0 border-r bg-background">
           <Card className="flex h-full flex-col rounded-none border-0 border-r bg-card shadow-none">
-            <CardHeader className="flex-row items-center justify-between space-y-0 border-b p-4">
-              <CardTitle className="text-base">全部收藏 <span className="text-sm text-muted-foreground">{filteredItems.length}</span></CardTitle>
-              <div className="flex items-center gap-2">
+            <CardHeader className="!flex flex-nowrap items-center justify-between gap-2 space-y-0 border-b p-4">
+              <CardTitle className="shrink-0 whitespace-nowrap text-base">全部收藏 <span className="text-sm text-muted-foreground">{filteredItems.length}</span></CardTitle>
+              <div className="flex shrink-0 items-center gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="gap-1.5" />}>
                     <span>{sortLabel(sortMode)}</span>
@@ -995,6 +1054,7 @@ function Topbar(props: {
   query: string;
   hasVault: boolean;
   installPromptEvent: any;
+  isInstalledPwa: boolean;
   onQuery: (value: string) => void;
   onCreate: () => void;
   onOpenVault: () => void;
@@ -1044,6 +1104,14 @@ function Topbar(props: {
           <IconButtonWithTooltip label="AI 智能整理" variant="secondary" onClick={props.onSettings}><Sparkles /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="刷新同步" onClick={props.onRefresh}><RefreshCw /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="保险箱" variant={props.hasVault ? "secondary" : "ghost"} onClick={props.onOpenVault}><ShieldCheck /></IconButtonWithTooltip>
+          <IconButtonWithTooltip
+            label={props.isInstalledPwa ? "应用已安装" : "安装应用"}
+            variant={props.installPromptEvent ? "secondary" : "ghost"}
+            disabled={props.isInstalledPwa}
+            onClick={props.onPromptInstall}
+          >
+            <Download />
+          </IconButtonWithTooltip>
           <ThemeToggle />
           <Badge variant="secondary" className="grid size-8 place-items-center rounded-full p-0" title={subtitle}>{(props.user.name || props.user.email || "用").slice(0, 1)}</Badge>
           <DropdownMenu>
@@ -1051,7 +1119,6 @@ function Topbar(props: {
               <MoreVertical />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {props.installPromptEvent ? <DropdownMenuItem onClick={props.onPromptInstall}><Grid3X3 /> 安装应用</DropdownMenuItem> : null}
               <DropdownMenuItem onClick={props.onShare}><Upload /> 分享当前收藏</DropdownMenuItem>
               <DropdownMenuItem onClick={props.onMenu}><Grid3X3 /> 快捷操作</DropdownMenuItem>
               <DropdownMenuItem onClick={props.onSignOut}><LogOut /> 退出登录</DropdownMenuItem>
@@ -1171,7 +1238,6 @@ function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: 
         {item.favorite ? <Star className="size-4 shrink-0 text-primary" fill="currentColor" /> : null}
       </div>
       <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
-        {item.domain ? <span className="min-w-0 max-w-[120px] truncate">{item.domain}</span> : null}
         {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => <Badge variant="outline" className="max-w-[96px] shrink-0 truncate" key={tag}>{tag}</Badge>)}
         <span className="shrink-0">{formatListDate(item.last_used_at || item.created_at)}</span>
       </div>
@@ -1214,6 +1280,19 @@ function DetailPanel(props: {
   onCopyPassword: () => void;
   onOpen: (url: string, copyBeforeOpen?: string) => void;
 }) {
+  const [titleDraft, setTitleDraft] = useState(props.item?.title || "");
+
+  useEffect(() => {
+    setTitleDraft(props.item?.title || "");
+  }, [props.item?.id, props.item?.title]);
+
+  function commitTitle() {
+    if (!props.item) return;
+    const nextTitle = titleDraft.trim() || props.item.title;
+    setTitleDraft(nextTitle);
+    if (nextTitle !== props.item.title) props.onTitle(nextTitle);
+  }
+
   if (!props.item) {
     return (
       <aside className="min-h-0 bg-background">
@@ -1271,7 +1350,21 @@ function DetailPanel(props: {
       <ScrollArea className="h-full">
         <div className="grid gap-3 p-4">
         <div className="grid min-w-0 grid-cols-[minmax(160px,1fr)_auto] items-center gap-3 rounded-lg border bg-card px-3 py-2">
-          <Input className="h-8 min-w-0 border-0 bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0" value={item.title} onChange={(event) => props.onTitle(event.target.value)} aria-label="标题" />
+          <Input
+            className="h-8 min-w-0 border-0 bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0"
+            value={titleDraft}
+            onChange={(event) => setTitleDraft(event.target.value)}
+            onBlur={commitTitle}
+            onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitTitle();
+              }
+              if (event.key === "Escape") setTitleDraft(item.title);
+            }}
+            aria-label="标题"
+          />
           <div className="flex min-w-0 items-center gap-1.5">
             <Badge variant="outline" className="shrink-0">{TYPE_META[item.type].label}</Badge>
             {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => (
@@ -1405,7 +1498,7 @@ function CreateModal(props: {
 }) {
   return (
     <Dialog open onOpenChange={(open) => !open && props.onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] !max-w-[48rem] overflow-y-auto sm:!max-w-[48rem]">
         <Tabs value={props.modalTab} onValueChange={(value) => props.onTab(value as ModalTab)}>
           <DialogHeader>
             <TabsList>
@@ -1415,7 +1508,7 @@ function CreateModal(props: {
           </DialogHeader>
           <TabsContent value="favorite">
             <Textarea
-              className="min-h-[240px]"
+              className="!h-[320px] min-h-[320px] max-h-[320px] ![field-sizing:fixed] overflow-y-auto"
               placeholder="粘贴 URL、文本、代码、JSON，或直接粘贴图片。按 Ctrl/⌘ + Enter 保存。"
               value={props.quickInput}
               onChange={(event) => props.onQuickInput(event.target.value)}
@@ -1562,7 +1655,7 @@ function SettingsModal({ config, prompts, status, onClose, onSubmit, onAddPrompt
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
-          <DialogDescription>配置大模型与提示词，所有信息仅保存在浏览器本地</DialogDescription>
+          <DialogDescription>配置大模型与提示词，登录后同步到 Supabase，本地模式保存在当前浏览器</DialogDescription>
         </DialogHeader>
       <form onSubmit={onSubmit}>
         <div className="grid gap-3">
@@ -1741,6 +1834,34 @@ function formatDetailDate(value: string) {
 
 function isSystemTag(tag: string) {
   return tag === "__read_later" || tag === "__trash";
+}
+
+function isRunningAsPwa() {
+  return window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+}
+
+function normalizeLLMConfig(value: unknown): LLMConfig {
+  if (!value || typeof value !== "object") return loadLLMConfig();
+  const candidate = value as Partial<LLMConfig>;
+  return {
+    baseUrl: typeof candidate.baseUrl === "string" ? candidate.baseUrl : "",
+    apiKey: typeof candidate.apiKey === "string" ? candidate.apiKey : "",
+    model: typeof candidate.model === "string" ? candidate.model : ""
+  };
+}
+
+function normalizePrompts(value: unknown): PromptConfig[] {
+  if (!Array.isArray(value) || value.length === 0) return loadPrompts();
+  return value
+    .filter((prompt) => prompt && typeof prompt === "object")
+    .map((prompt) => {
+      const candidate = prompt as Partial<PromptConfig>;
+      return {
+        id: typeof candidate.id === "string" && candidate.id ? candidate.id : `prompt-${crypto.randomUUID()}`,
+        name: typeof candidate.name === "string" && candidate.name.trim() ? candidate.name : "未命名",
+        content: typeof candidate.content === "string" ? candidate.content : ""
+      };
+    });
 }
 
 function addTag(tags: string[], tag: string) {

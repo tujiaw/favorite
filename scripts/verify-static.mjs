@@ -60,6 +60,10 @@ const policies = [
   "favorites_insert_own",
   "favorites_update_own",
   "favorites_delete_own",
+  "app_settings_select_own",
+  "app_settings_insert_own",
+  "app_settings_update_own",
+  "app_settings_delete_own",
   "favorite_images_insert_own"
 ];
 const missingPolicies = policies.filter((policy) => !schema.includes(policy));
