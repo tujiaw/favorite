@@ -163,3 +163,21 @@
     @apply font-sans;
   }
 }
+
+.favorite-code-editor .cm-editor {
+  height: 100%;
+  border-radius: var(--radius-md);
+}
+
+.favorite-code-editor .cm-scroller {
+  height: 100%;
+}
+
+.favorite-code-editor .cm-line {
+  line-height: 1.6;
+}
+
+.favorite-code-editor .cm-inline-ai-selection {
+  background: color-mix(in oklab, var(--primary) 34%, transparent);
+  border-radius: 2px;
+}

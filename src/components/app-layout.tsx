@@ -1,4 +1,4 @@
-import React, { KeyboardEvent, useEffect, useState } from "react";
+import React, { KeyboardEvent, useEffect, useRef, useState } from "react";
 import {
   Archive,
   Check,
@@ -45,11 +45,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CodeEditor, type CodeEditorHandle } from "@/components/code-editor";
 import { TYPE_META } from "@/app/meta";
-import type { AppUser, FavoriteItem, FavoriteType, PromptConfig } from "@/app/types";
+import type { AppUser, FavoriteItem, FavoriteType, InlineAISelection, PromptConfig } from "@/app/types";
 import { categoryLabel, formatDetailDate, formatListDate, isSystemTag, renderMarkdown, truncate } from "@/app/utils";
 
 export function LoginScreen({ onSignIn }: { onSignIn: (provider: string) => void }) {
@@ -296,6 +296,7 @@ export function DetailPanel(props: {
   aiSummary?: string;
   aiSummaryVisible: boolean;
   aiSummaryExpanded: boolean;
+  inlineAISelection: InlineAISelection | null;
   passwordVisible: boolean;
   revealedSecret: { password?: string } | null;
   onCreate: () => void;
@@ -313,6 +314,7 @@ export function DetailPanel(props: {
   onToggleEdit: () => void;
   onRefreshAiSummary: () => void;
   onRunAI: (promptId: string) => void;
+  onOpenInlineAI: (selection: InlineAISelection) => void;
   onCloseAiSummary: () => void;
   onCopyAiSummary: () => void;
   onApplyAiSummary: () => void;
@@ -323,6 +325,7 @@ export function DetailPanel(props: {
   onOpen: (url: string, copyBeforeOpen?: string) => void;
 }) {
   const [titleDraft, setTitleDraft] = useState(props.item?.title || "");
+  const codeEditorRef = useRef<CodeEditorHandle>(null);
 
   useEffect(() => {
     setTitleDraft(props.item?.title || "");
@@ -333,6 +336,10 @@ export function DetailPanel(props: {
     const nextTitle = titleDraft.trim() || props.item.title;
     setTitleDraft(nextTitle);
     if (nextTitle !== props.item.title) props.onTitle(nextTitle);
+  }
+
+  function openInlineAI() {
+    codeEditorRef.current?.openInlineAI();
   }
 
   if (!props.item) {
@@ -391,9 +398,8 @@ export function DetailPanel(props: {
     );
   }
   return (
-    <aside className="min-h-0 bg-background">
-      <ScrollArea className="h-full">
-        <div className="grid gap-3 p-4">
+    <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] bg-background">
+      <div className="grid gap-3 border-b bg-background p-4 pb-3">
         <div className="grid min-w-0 grid-cols-[minmax(160px,1fr)_auto] items-center gap-3 rounded-lg border bg-card px-3 py-2">
           <Input
             className="h-8 min-w-0 border-0 bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0"
@@ -436,6 +442,9 @@ export function DetailPanel(props: {
             />
             <Button variant="outline" onClick={props.onToggleEdit}><Eye /> {props.contentEditing ? "预览" : "编辑"}</Button>
             <Button variant="outline" size="icon" title="复制内容" onClick={props.onCopy}><Copy /></Button>
+            {props.contentEditing && item.type !== "image" ? (
+              <Button variant="outline" size="icon" title="AI 插入或替换（Ctrl/⌘ + J）" onMouseDown={(event) => event.preventDefault()} onClick={openInlineAI}><Sparkles /></Button>
+            ) : null}
             {item.type !== "image" ? (
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button variant="outline" className="gap-1.5" />}>
@@ -489,11 +498,22 @@ export function DetailPanel(props: {
           </div>
           <span className="shrink-0">共 {String(item.content || "").trim().length} 字</span>
         </div>
+      </div>
+      <ScrollArea className="min-h-0 [&>[data-slot=scroll-area-viewport]]:h-full">
+        <div className={props.contentEditing ? "grid min-h-full grid-rows-[minmax(0,1fr)_auto_auto] gap-3 p-4" : "grid gap-3 p-4"}>
         {item.type === "image" ? (
           <Card className="grid min-h-[280px] place-items-center overflow-hidden bg-muted p-3"><img className="max-h-[420px] max-w-full object-contain" src={item.content} alt={item.title} /></Card>
         ) : props.contentEditing ? (
-          <Card className="p-3">
-            <Textarea className="min-h-[420px] border-0 font-mono shadow-none focus-visible:ring-0" value={item.content} onChange={(event) => props.onContentDraft(event.target.value)} onBlur={(event) => props.onContentCommit(event.target.value)} />
+          <Card className="min-h-0 p-3">
+            <CodeEditor
+              ref={codeEditorRef}
+              item={item}
+              value={item.content}
+              inlineAISelection={props.inlineAISelection}
+              onChange={props.onContentDraft}
+              onCommit={props.onContentCommit}
+              onOpenInlineAI={props.onOpenInlineAI}
+            />
           </Card>
         ) : (
           <Card className="p-5">

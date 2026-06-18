@@ -1,5 +1,5 @@
 import { FormEvent, KeyboardEvent, useEffect, useState } from "react";
-import { Check, FileText, Image, KeyRound, Plus, Search, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Check, FileText, Image, KeyRound, Plus, Search, ShieldCheck, Sparkles, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,47 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { LLMConfig, ModalTab, PromptConfig } from "@/app/types";
+
+export function InlineAIModal({ busy, hasSelection, x, y, onClose, onSubmit }: {
+  busy: boolean;
+  hasSelection: boolean;
+  x?: number;
+  y?: number;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const left = Math.max(12, Math.min(x ?? window.innerWidth - 500, window.innerWidth - 492));
+  const top = Math.max(12, Math.min(y ?? 80, window.innerHeight - 260));
+  return (
+    <div className="fixed z-50 w-[min(calc(100vw-2rem),30rem)]" style={{ left, top }}>
+      <Card className="grid gap-3 p-3 shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-sm"><Sparkles className="size-4" /> AI {hasSelection ? "替换选中文字" : "插入到光标处"}</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">输入指令，结果会直接写入正文。</p>
+          </div>
+          <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={onClose}>关闭</Button>
+        </div>
+        <form className="grid gap-3" onSubmit={onSubmit}>
+          <Textarea
+            name="prompt"
+            className="min-h-24"
+            placeholder={hasSelection ? "例如：改写得更简洁，保留原意" : "例如：生成一段后续说明"}
+            autoFocus
+            required
+            onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+              if (event.key === "Escape") onClose();
+            }}
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>取消</Button>
+            <Button type="submit" disabled={busy}><Sparkles /> {busy ? "生成中..." : "生成并写入"}</Button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
 
 export function CreateModal(props: {
   modalTab: ModalTab;

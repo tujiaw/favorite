@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LLM_CONFIG_SETTING_KEY, PROMPTS_SETTING_KEY, TYPE_META } from "@/app/meta";
-import type { AppUser, FavoriteItem, FavoriteType, LLMConfig, ModalTab, PromptConfig, SortMode } from "@/app/types";
+import type { AppUser, FavoriteItem, FavoriteType, InlineAISelection, LLMConfig, ModalTab, PromptConfig, SortMode } from "@/app/types";
 import {
   accountFingerprint,
   addTag,
@@ -29,7 +29,7 @@ import {
   waitForPaint
 } from "@/app/utils";
 import { DetailPanel, ItemCard, LoginScreen, Sidebar, Topbar } from "@/components/app-layout";
-import { ConfirmModal, CreateModal, SettingsModal, TagManagerModal, VaultModal } from "@/components/app-modals";
+import { ConfirmModal, CreateModal, InlineAIModal, SettingsModal, TagManagerModal, VaultModal } from "@/components/app-modals";
 import { loadLLMConfig, loadPrompts, runPrompt, saveLLMConfig, savePrompts } from "./ai.js";
 import { decryptSecret, encryptSecret } from "./crypto.js";
 import { createBaseItem, deleteFavoriteFor, listFavoritesFor, loadSettingFor, saveFavoriteFor, saveSettingFor, uploadImageFor } from "./data.js";
@@ -74,6 +74,8 @@ export function App() {
   const [aiSummaryVisible, setAiSummaryVisible] = useState(false);
   const [aiSummaryExpanded, setAiSummaryExpanded] = useState(false);
   const [aiSummaryById, setAiSummaryById] = useState<Record<string, string>>({});
+  const [inlineAISelection, setInlineAISelection] = useState<InlineAISelection | null>(null);
+  const [inlineAILoading, setInlineAILoading] = useState(false);
   const [installPromptEvent, setInstallPromptEvent] = useState<any>(null);
   const [isInstalledPwa, setIsInstalledPwa] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -775,6 +777,45 @@ export function App() {
     }
   }
 
+  async function runInlineAI(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedItem || !inlineAISelection || selectedItem.id !== inlineAISelection.itemId) {
+      setInlineAISelection(null);
+      return;
+    }
+    if (!llmConfig.baseUrl || !llmConfig.apiKey || !llmConfig.model) {
+      setStatus("请先在设置中配置大模型");
+      setSettingsModal(true);
+      return;
+    }
+    const form = new FormData(event.currentTarget);
+    const userPrompt = String(form.get("prompt") || "").trim();
+    if (!userPrompt) return;
+    setInlineAILoading(true);
+    setStatus(inlineAISelection.selectedText ? "AI 正在替换选中文字" : "AI 正在生成插入内容");
+    try {
+      const hasSelection = inlineAISelection.start !== inlineAISelection.end;
+      const content = selectedItem.content || "";
+      const start = Math.max(0, Math.min(inlineAISelection.start, content.length));
+      const end = Math.max(start, Math.min(inlineAISelection.end, content.length));
+      const prompt = hasSelection
+        ? `你正在帮助编辑一篇收藏内容。请根据用户指令处理 <selected>...</selected> 中的选中文字，并参考全文上下文。只输出可直接替换选中文字的最终内容，不要解释、不要添加引言。\n\n用户指令：${userPrompt}\n\n上下文：\n`
+        : `你正在帮助编辑一篇收藏内容。请根据用户指令生成一段可直接插入到光标处的内容，只输出要插入的最终内容，不要解释、不要添加引言。\n\n用户指令：${userPrompt}\n\n当前全文上下文：\n`;
+      const context = hasSelection
+        ? `${content.slice(0, start)}<selected>${content.slice(start, end)}</selected>${content.slice(end)}`
+        : content;
+      const result = await runPrompt(prompt, context, llmConfig);
+      const nextContent = `${content.slice(0, start)}${result}${content.slice(end)}`;
+      await updateSelected({ content: nextContent, preview: makePreview(nextContent) });
+      setInlineAISelection(null);
+      setStatus(hasSelection ? "AI 已替换选中文字" : "AI 已插入到光标处");
+    } catch (error: any) {
+      setStatus(`AI 写入失败：${error.message}`);
+    } finally {
+      setInlineAILoading(false);
+    }
+  }
+
   if (!booted || isLoadingAuth) {
     return <main className="grid min-h-full place-items-center bg-background text-muted-foreground">正在连接 GitHub 登录...</main>;
   }
@@ -919,6 +960,7 @@ export function App() {
           aiSummary={selectedItem ? aiSummaryById[selectedItem.id] : ""}
           aiSummaryVisible={aiSummaryVisible}
           aiSummaryExpanded={aiSummaryExpanded}
+          inlineAISelection={inlineAISelection}
           onCreate={() => setCreateModal(true)}
           onFavorite={() => selectedItem && updateSelected({ favorite: !selectedItem.favorite })}
           onCopy={async () => {
@@ -938,6 +980,7 @@ export function App() {
           onToggleEdit={() => setContentEditing((value) => !value)}
           onRefreshAiSummary={refreshAiSummary}
           onRunAI={runAI}
+          onOpenInlineAI={setInlineAISelection}
           onCloseAiSummary={() => setAiSummaryVisible(false)}
           onCopyAiSummary={() => selectedItem && copyText(aiSummaryById[selectedItem.id] || "")}
           onApplyAiSummary={() => selectedItem && aiSummaryById[selectedItem.id] && updateSelected({ content: aiSummaryById[selectedItem.id], preview: makePreview(aiSummaryById[selectedItem.id]) })}
@@ -980,6 +1023,16 @@ export function App() {
           }}
           onCreateAccount={createAccount}
           onBitwardenFile={importBitwardenExport}
+        />
+      ) : null}
+      {inlineAISelection ? (
+        <InlineAIModal
+          busy={inlineAILoading}
+          hasSelection={inlineAISelection.start !== inlineAISelection.end}
+          x={inlineAISelection.popupX}
+          y={inlineAISelection.popupY}
+          onClose={() => setInlineAISelection(null)}
+          onSubmit={runInlineAI}
         />
       ) : null}
       {vaultModal ? (

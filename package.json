@@ -24,6 +24,9 @@
   "license": "ISC",
   "dependencies": {
     "@base-ui/react": "^1.5.0",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.0",
     "@fontsource-variable/noto-serif": "^5.2.9",
     "@fontsource-variable/source-sans-3": "^5.2.9",
     "@phosphor-icons/react": "^2.1.10",
@@ -39,6 +42,7 @@
     "@radix-ui/react-tooltip": "^1.2.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "codemirror": "^6.0.2",
     "lucide-react": "^1.20.0",
     "radix-ui": "^1.6.0",
     "react": "^19.2.7",

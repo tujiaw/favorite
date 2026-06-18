@@ -23,6 +23,14 @@ export type SortMode = "updated_at" | "use_count" | "title";
 export type ModalTab = "favorite" | "account";
 export type LLMConfig = { baseUrl: string; apiKey: string; model: string };
 export type PromptConfig = { id: string; name: string; content: string };
+export type InlineAISelection = {
+  itemId: string;
+  start: number;
+  end: number;
+  selectedText: string;
+  popupX?: number;
+  popupY?: number;
+};
 export type BitwardenExport = {
   encrypted?: boolean;
   folders?: { id?: unknown; name?: unknown }[];
