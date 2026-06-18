@@ -151,6 +151,7 @@ export function App() {
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [specialFilter, setSpecialFilter] = useState<"recent" | null>(null);
+  const [showAllTags, setShowAllTags] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [status, setStatusValue] = useState("");
@@ -172,6 +173,7 @@ export function App() {
   const [sortDesc, setSortDesc] = useState(true);
   const [contentEditing, setContentEditing] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
+  const [tagManagerModal, setTagManagerModal] = useState(false);
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({ baseUrl: "", apiKey: "", model: "" });
   const [prompts, setPrompts] = useState<PromptConfig[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
@@ -578,6 +580,18 @@ export function App() {
     await refreshItems(context, next.id);
   }
 
+  async function markItemUsed(item: FavoriteItem) {
+    const now = new Date().toISOString();
+    const next = {
+      ...item,
+      last_used_at: now,
+      use_count: (item.use_count || 0) + 1,
+      updated_at: item.updated_at || now
+    };
+    setItems((current) => current.map((candidate) => (candidate.id === item.id ? next : candidate)));
+    await saveFavoriteFor(context, next);
+  }
+
   async function addTagToSelected(raw: string) {
     if (!selectedItem || !raw.trim()) return;
     const nextTags = raw
@@ -591,6 +605,41 @@ export function App() {
   async function removeTagFromSelected(tag: string) {
     if (!selectedItem) return;
     await updateSelected({ tags: selectedItem.tags.filter((candidate) => candidate !== tag) });
+  }
+
+  async function renameTagEverywhere(oldTag: string, nextRaw: string) {
+    const nextTag = nextRaw.trim();
+    if (!oldTag || !nextTag || oldTag === nextTag) return;
+    const now = new Date().toISOString();
+    const changed = items
+      .filter((item) => item.tags.includes(oldTag))
+      .map((item) => ({
+        ...item,
+        tags: item.tags.reduce<string[]>((tags, tag) => addTag(tags, tag === oldTag ? nextTag : tag), []),
+        updated_at: now
+      }));
+    if (!changed.length) return;
+    setItems((current) => current.map((item) => changed.find((candidate) => candidate.id === item.id) || item));
+    await Promise.all(changed.map((item) => saveFavoriteFor(context, item)));
+    if (tagFilter === oldTag) setTagFilter(nextTag);
+    setStatus(`已将标签“${oldTag}”重命名为“${nextTag}”`);
+  }
+
+  async function deleteTagEverywhere(tag: string) {
+    if (!tag) return;
+    const now = new Date().toISOString();
+    const changed = items
+      .filter((item) => item.tags.includes(tag))
+      .map((item) => ({
+        ...item,
+        tags: item.tags.filter((candidate) => candidate !== tag),
+        updated_at: now
+      }));
+    if (!changed.length) return;
+    setItems((current) => current.map((item) => changed.find((candidate) => candidate.id === item.id) || item));
+    await Promise.all(changed.map((item) => saveFavoriteFor(context, item)));
+    if (tagFilter === tag) setTagFilter(null);
+    setStatus(`已删除标签“${tag}”`);
   }
 
   function updateContentDraft(value: string) {
@@ -637,6 +686,7 @@ export function App() {
       }
       setRevealedSecret(secret);
       await copyText(secret.password);
+      await markItemUsed(selectedItem);
     } catch {
       setStatus("解密失败，请检查保险箱主密码");
     }
@@ -681,6 +731,7 @@ export function App() {
     link.download = `${safeFilename(selectedItem.title)}.md`;
     link.click();
     URL.revokeObjectURL(url);
+    void markItemUsed(selectedItem);
     setStatus("已导出 Markdown 文件");
   }
 
@@ -694,6 +745,7 @@ export function App() {
       }
     }
     setPasswordVisible((value) => !value);
+    await markItemUsed(selectedItem);
   }
 
   async function copyText(text: string) {
@@ -867,6 +919,7 @@ export function App() {
           favoriteOnly={favoriteOnly}
           tagFilter={tagFilter}
           specialFilter={specialFilter}
+          showAllTags={showAllTags}
           onToggle={() => setSidebarCollapsed((value) => !value)}
           onOverview={() => {
             setTypeFilter("all");
@@ -894,10 +947,12 @@ export function App() {
             setTagFilter(tag);
             setSpecialFilter(null);
           }}
+          onToggleTags={() => setShowAllTags((value) => !value)}
+          onManageTags={() => setTagManagerModal(true)}
         />
         <section className="min-h-0 min-w-0 border-r bg-background">
           <Card className="flex h-full flex-col rounded-none border-0 border-r bg-card shadow-none">
-            <CardHeader className="!flex flex-nowrap items-center justify-between gap-2 space-y-0 border-b p-4">
+            <CardHeader className="!flex flex-nowrap items-center justify-between gap-2 space-y-0 border-b px-3 py-2.5">
               <CardTitle className="shrink-0 whitespace-nowrap text-base">全部收藏 <span className="text-sm text-muted-foreground">{filteredItems.length}</span></CardTitle>
               <div className="flex shrink-0 items-center gap-2">
                 <DropdownMenu>
@@ -923,8 +978,8 @@ export function App() {
                 <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 /></Button>
               </div>
             </CardHeader>
-            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-3">
-              <div className={viewMode === "grid" ? "grid gap-3 p-3 sm:grid-cols-2" : "grid gap-2 p-3"}>
+            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-2">
+              <div className={viewMode === "grid" ? "grid gap-2 p-2 sm:grid-cols-2" : "grid gap-1.5 p-2"}>
                 {filteredItems.length ? filteredItems.map((item) => (
                   <ItemCard
                     item={item}
@@ -932,6 +987,7 @@ export function App() {
                     selected={selectedItem?.id === item.id}
                     onSelect={async () => {
                       setSelectedId(item.id);
+                      void markItemUsed(item);
                       setPasswordVisible(false);
                       setContentEditing(false);
                       if (item.type === "account" && item.encrypted_secret && vaultPassword) {
@@ -962,7 +1018,11 @@ export function App() {
           aiSummaryExpanded={aiSummaryExpanded}
           onCreate={() => setCreateModal(true)}
           onFavorite={() => selectedItem && updateSelected({ favorite: !selectedItem.favorite })}
-          onCopy={() => selectedItem && copyText(selectedItem.content)}
+          onCopy={async () => {
+            if (!selectedItem) return;
+            await copyText(selectedItem.content);
+            await markItemUsed(selectedItem);
+          }}
           onDelete={() => setDeleteConfirm(true)}
           onDuplicate={duplicateSelected}
           onExport={exportSelected}
@@ -983,6 +1043,7 @@ export function App() {
           onCopyPassword={copyAccountPassword}
           onOpen={async (url, copyBeforeOpen) => {
             if (copyBeforeOpen) await copyText(copyBeforeOpen);
+            if (selectedItem) await markItemUsed(selectedItem);
             window.open(url, "_blank", "noreferrer");
           }}
         />
@@ -1040,6 +1101,14 @@ export function App() {
           onSubmit={saveSettings}
           onAddPrompt={addPromptRow}
           onDeletePrompt={deletePromptRow}
+        />
+      ) : null}
+      {tagManagerModal ? (
+        <TagManagerModal
+          tags={tags}
+          onClose={() => setTagManagerModal(false)}
+          onRename={renameTagEverywhere}
+          onDelete={deleteTagEverywhere}
         />
       ) : null}
       {toastStatus ? <Card className="fixed bottom-3 right-4 z-50 px-3 py-2 text-xs text-muted-foreground shadow-md">{toastStatus}</Card> : null}
@@ -1174,26 +1243,30 @@ function Sidebar(props: {
   favoriteOnly: boolean;
   tagFilter: string | null;
   specialFilter: "recent" | null;
+  showAllTags: boolean;
   onToggle: () => void;
   onOverview: () => void;
   onType: (type: FavoriteType | "all") => void;
   onRecent: () => void;
   onFavorite: () => void;
   onTag: (tag: string | null) => void;
+  onToggleTags: () => void;
+  onManageTags: () => void;
 }) {
   if (props.collapsed) {
     return (
       <aside className="min-h-0 border-r bg-card p-3">
         <Card className="flex h-full flex-col items-center gap-2 border-0 bg-transparent shadow-none">
-          <IconButtonWithTooltip label="展开分类" onClick={props.onToggle}><PanelLeft /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="展开侧栏" onClick={props.onToggle}><PanelLeft /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="搜索" onClick={props.onToggle}><Search /></IconButtonWithTooltip>
-          <IconButtonWithTooltip label="分类" onClick={props.onToggle}><Sparkles /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="类型" onClick={props.onToggle}><Sparkles /></IconButtonWithTooltip>
         </Card>
       </aside>
     );
   }
   const favoriteCount = props.items.filter((item) => item.favorite).length;
   const recentCount = props.items.filter((item) => item.last_used_at).length;
+  const visibleTags = props.showAllTags ? props.tags : props.tags.slice(0, 8);
   const activeOverview = !props.specialFilter && props.typeFilter === "all" && !props.favoriteOnly && !props.tagFilter;
   return (
     <aside className="min-h-0 border-r bg-card">
@@ -1210,8 +1283,8 @@ function Sidebar(props: {
           <Button variant={props.favoriteOnly ? "secondary" : "ghost"} className="justify-between" onClick={props.onFavorite}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Star />星标收藏</span><Badge variant="outline">{favoriteCount}</Badge></Button>
         </div>
         <div className="grid gap-2">
-          <p className="px-2 text-xs font-medium text-muted-foreground">分类</p>
-          {(["link", "text", "image", "code", "json"] as FavoriteType[]).map((type) => {
+          <p className="px-2 text-xs font-medium text-muted-foreground">类型</p>
+          {(["link", "text", "image", "code", "json", "account"] as FavoriteType[]).map((type) => {
             const Icon = type === "link" ? Tag : TYPE_META[type].icon;
             return (
               <Button variant={props.typeFilter === type ? "secondary" : "ghost"} className="justify-between" key={type} onClick={() => props.onType(type)}>
@@ -1219,12 +1292,25 @@ function Sidebar(props: {
               </Button>
             );
           })}
-          <Button variant="ghost" className="justify-start" onClick={() => window.alert("新分类将在下一阶段迁移为可编辑标签管理")}><Plus /><span>新建分类</span></Button>
         </div>
         <div className="grid gap-2">
-          <p className="px-2 text-xs font-medium text-muted-foreground">标签</p>
+          <div className="flex items-center justify-between gap-2 px-2">
+            <p className="text-xs font-medium text-muted-foreground">标签</p>
+            <div className="flex items-center gap-1">
+              {props.tags.length ? (
+                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onManageTags}>
+                  管理
+                </Button>
+              ) : null}
+              {props.tags.length > 8 ? (
+                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onToggleTags}>
+                  {props.showAllTags ? "收起" : "更多"}
+                </Button>
+              ) : null}
+            </div>
+          </div>
           <div className="flex flex-wrap gap-2">
-          {props.tags.length ? props.tags.slice(0, 8).map(([tag, count]) => (
+          {visibleTags.length ? visibleTags.map(([tag, count]) => (
             <Button variant={props.tagFilter === tag ? "default" : "secondary"} size="sm" key={tag} onClick={() => props.onTag(tag)}>
               <span className="max-w-[92px] truncate">{tag}</span><Badge variant="outline">{count}</Badge>
             </Button>
@@ -1243,22 +1329,22 @@ function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: 
   return (
     <Button variant="ghost" className="h-auto w-full min-w-0 whitespace-normal p-0 text-left" onClick={onSelect}>
       <Card className={selected ? "w-full min-w-0 overflow-hidden border-primary ring-1 ring-primary" : "w-full min-w-0 overflow-hidden"}>
-      <CardContent className="grid min-w-0 gap-3 p-3">
-      <div className="flex w-full min-w-0 items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 gap-3">
-          <Badge variant="secondary" className="grid size-8 shrink-0 place-items-center p-0"><Icon /></Badge>
+      <CardContent className="grid min-w-0 gap-2 p-2.5">
+      <div className="flex w-full min-w-0 items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-1 gap-2.5">
+          <Badge variant="secondary" className="grid size-7 shrink-0 place-items-center p-0"><Icon className="size-3.5" /></Badge>
           <div className="min-w-0 flex-1">
             <h2 className="flex min-w-0 items-center gap-1 text-sm font-medium">
               <span className="min-w-0 truncate">{item.title}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{TYPE_META[item.type].label}</span>
             </h2>
-            <p className="mt-1 line-clamp-2 break-all text-xs leading-5 text-muted-foreground">{item.preview || item.content}</p>
+            <p className="mt-0.5 line-clamp-2 break-all text-xs leading-4 text-muted-foreground">{item.preview || item.content}</p>
           </div>
         </div>
         {item.favorite ? <Star className="size-4 shrink-0 text-primary" fill="currentColor" /> : null}
       </div>
-      <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
-        {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => <Badge variant="outline" className="max-w-[96px] shrink-0 truncate" key={tag}>{tag}</Badge>)}
+      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-xs text-muted-foreground">
+        {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => <Badge variant="outline" className="max-w-[96px] shrink-0 truncate px-1.5 py-0" key={tag}>{tag}</Badge>)}
         <span className="shrink-0">{formatListDate(item.last_used_at || item.created_at)}</span>
       </div>
       </CardContent>
@@ -1661,6 +1747,91 @@ function ConfirmModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm
   );
 }
 
+function TagManagerModal({ tags, onClose, onRename, onDelete }: {
+  tags: [string, number][];
+  onClose: () => void;
+  onRename: (oldTag: string, nextTag: string) => Promise<void>;
+  onDelete: (tag: string) => Promise<void>;
+}) {
+  const [query, setQuery] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [busyTag, setBusyTag] = useState<string | null>(null);
+  const filteredTags = tags.filter(([tag]) => tag.toLowerCase().includes(query.trim().toLowerCase()));
+
+  useEffect(() => {
+    setDrafts((current) => {
+      const next = { ...current };
+      tags.forEach(([tag]) => {
+        next[tag] ??= tag;
+      });
+      return next;
+    });
+  }, [tags]);
+
+  async function rename(tag: string) {
+    setBusyTag(tag);
+    try {
+      await onRename(tag, drafts[tag] || tag);
+    } finally {
+      setBusyTag(null);
+    }
+  }
+
+  async function remove(tag: string) {
+    setBusyTag(tag);
+    try {
+      await onDelete(tag);
+    } finally {
+      setBusyTag(null);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[calc(100vh-2rem)] !max-w-2xl overflow-y-auto sm:!max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>标签管理</DialogTitle>
+          <DialogDescription>重命名或删除标签会批量更新已使用该标签的收藏。</DialogDescription>
+        </DialogHeader>
+        <InputGroup className="h-9 rounded-xl bg-background">
+          <InputGroupAddon><Search className="size-4" /></InputGroupAddon>
+          <InputGroupInput value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标签" />
+        </InputGroup>
+        <div className="grid max-h-[420px] gap-2 overflow-auto pr-1">
+          {filteredTags.length ? filteredTags.map(([tag, count]) => (
+            <Card className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 p-2" key={tag}>
+              <Input
+                className="h-8"
+                value={drafts[tag] ?? tag}
+                onChange={(event) => setDrafts((current) => ({ ...current, [tag]: event.target.value }))}
+                onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void rename(tag);
+                  }
+                }}
+              />
+              <Badge variant="outline">{count}</Badge>
+              <Button type="button" variant="outline" size="sm" disabled={busyTag === tag || !drafts[tag]?.trim() || drafts[tag] === tag} onClick={() => rename(tag)}>
+                <Check /> 重命名
+              </Button>
+              <Button type="button" variant="ghost" size="icon" className="text-destructive hover:text-destructive" disabled={busyTag === tag} title={`删除标签 ${tag}`} onClick={() => remove(tag)}>
+                <Trash2 />
+              </Button>
+            </Card>
+          )) : (
+            <Card className="p-6 text-center text-sm text-muted-foreground">没有匹配的标签</Card>
+          )}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>关闭</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SettingsModal({ config, prompts, status, onClose, onSubmit, onAddPrompt, onDeletePrompt }: {
   config: LLMConfig;
   prompts: PromptConfig[];
@@ -1815,15 +1986,7 @@ function tagCounts(items: FavoriteItem[]): [string, number][] {
 }
 
 function categoryLabel(type: FavoriteType) {
-  const labels: Partial<Record<FavoriteType, string>> = {
-    link: "远程办公",
-    text: "学习资料",
-    image: "工作",
-    code: "工具",
-    json: "数据文档",
-    account: "账号保险箱"
-  };
-  return labels[type] || TYPE_META[type].label;
+  return TYPE_META[type].label;
 }
 
 function sortLabel(mode: SortMode) {
