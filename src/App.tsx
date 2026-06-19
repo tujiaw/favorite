@@ -865,12 +865,6 @@ export function App() {
           specialFilter={specialFilter}
           showAllTags={showAllTags}
           onToggle={() => setSidebarCollapsed((value) => !value)}
-          onOverview={() => {
-            setTypeFilter("all");
-            setFavoriteOnly(false);
-            setTagFilter(null);
-            setSpecialFilter(null);
-          }}
           onType={(type) => {
             setTypeFilter(type);
             setFavoriteOnly(false);
@@ -896,11 +890,11 @@ export function App() {
         />
         <section className="min-h-0 min-w-0 border-r bg-background">
           <Card className="flex h-full flex-col rounded-none border-0 border-r bg-card shadow-none">
-            <CardHeader className="!flex flex-nowrap items-center justify-between gap-1.5 space-y-0 border-b px-2 py-1">
-              <CardTitle className="shrink-0 whitespace-nowrap text-sm">全部收藏 <span className="text-xs text-muted-foreground">{filteredItems.length}</span></CardTitle>
+            <CardHeader className="!flex flex-nowrap items-center justify-between gap-1 space-y-0 border-b px-1.5 py-0.5">
+              <CardTitle className="shrink-0 whitespace-nowrap text-xs">全部收藏 <span className="text-xs text-muted-foreground">{filteredItems.length}</span></CardTitle>
               <div className="flex shrink-0 items-center gap-1">
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" />}>
+                  <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-6 gap-1 px-1.5 text-xs" />}>
                     <span>{sortLabel(sortMode)}</span>
                     <ChevronDown className="size-3.5 opacity-70" />
                   </DropdownMenuTrigger>
@@ -918,8 +912,8 @@ export function App() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="size-7" title="列表视图" onClick={() => setViewMode("list")}><List className="size-4" /></Button>
-                <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" className="size-7" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 className="size-4" /></Button>
+                <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="size-6" title="列表视图" onClick={() => setViewMode("list")}><List className="size-3.5" /></Button>
+                <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" className="size-6" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 className="size-3.5" /></Button>
               </div>
             </CardHeader>
             <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-1">

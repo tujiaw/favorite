@@ -44,7 +44,6 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CodeEditor, type CodeEditorHandle } from "@/components/code-editor";
@@ -180,7 +179,6 @@ export function Sidebar(props: {
   specialFilter: "recent" | null;
   showAllTags: boolean;
   onToggle: () => void;
-  onOverview: () => void;
   onType: (type: FavoriteType | "all") => void;
   onRecent: () => void;
   onFavorite: () => void;
@@ -202,15 +200,10 @@ export function Sidebar(props: {
   const favoriteCount = props.items.filter((item) => item.favorite).length;
   const recentCount = props.items.filter((item) => item.last_used_at).length;
   const visibleTags = props.showAllTags ? props.tags : props.tags.slice(0, 8);
-  const activeOverview = !props.specialFilter && props.typeFilter === "all" && !props.favoriteOnly && !props.tagFilter;
   return (
     <aside className="min-h-0 border-r bg-card">
-      <ScrollArea className="h-full">
+      <ScrollArea className="min-h-0">
         <Card className="grid gap-4 rounded-none border-0 bg-transparent p-3 shadow-none">
-        <div className="grid gap-1">
-          <Button variant={activeOverview ? "secondary" : "ghost"} className="justify-start" onClick={props.onOverview}><HomeIcon /><span>概览</span></Button>
-        </div>
-        <Separator />
         <div className="grid gap-2">
           <p className="px-2 text-xs font-medium text-muted-foreground">收藏管理</p>
           <Button variant={props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="justify-between" onClick={() => props.onType("all")}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Sparkles />全部收藏</span><Badge variant="outline">{props.items.length}</Badge></Button>
@@ -442,9 +435,6 @@ export function DetailPanel(props: {
             />
             <Button variant="outline" onClick={props.onToggleEdit}><Eye /> {props.contentEditing ? "预览" : "编辑"}</Button>
             <Button variant="outline" size="icon" title="复制内容" onClick={props.onCopy}><Copy /></Button>
-            {props.contentEditing && item.type !== "image" ? (
-              <Button variant="outline" size="icon" title="AI 插入或替换（Ctrl/⌘ + J）" onMouseDown={(event) => event.preventDefault()} onClick={openInlineAI}><Sparkles /></Button>
-            ) : null}
             {item.type !== "image" ? (
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button variant="outline" className="gap-1.5" />}>
@@ -545,7 +535,3 @@ export function DetailPanel(props: {
   );
 }
 
-
-function HomeIcon() {
-  return <Archive />;
-}
