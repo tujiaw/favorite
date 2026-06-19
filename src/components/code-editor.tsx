@@ -89,7 +89,9 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const [lineButton, setLineButton] = useState<{ top: number; lineFrom: number } | null>(null);
+  const aiButtonTimerRef = useRef<number | null>(null);
+  const pointerSelectingRef = useRef(false);
+  const [aiButton, setAiButton] = useState<{ left: number; top: number; pos: number } | null>(null);
   const valueRef = useRef(value);
   const itemRef = useRef(item);
   const onChangeRef = useRef(onChange);
@@ -118,6 +120,33 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
       popupX: coords?.left ?? host?.left ?? window.innerWidth - 500,
       popupY: (coords?.bottom ?? host?.top ?? 80) + 8
     };
+  }
+
+  function updateAIButton(view: EditorView) {
+    const host = wrapperRef.current?.getBoundingClientRect();
+    const pos = view.state.selection.main.head;
+    const coords = view.coordsAtPos(pos);
+    if (!host || !coords) return;
+    setAiButton({
+      left: Math.max(0, Math.min(coords.left - host.left + 8, host.width - 28)),
+      top: Math.max(0, coords.top - host.top - 4),
+      pos
+    });
+  }
+
+  function clearAIButtonTimer() {
+    if (aiButtonTimerRef.current == null) return;
+    window.clearTimeout(aiButtonTimerRef.current);
+    aiButtonTimerRef.current = null;
+  }
+
+  function scheduleAIButton(view: EditorView, delay = 180) {
+    clearAIButtonTimer();
+    aiButtonTimerRef.current = window.setTimeout(() => {
+      aiButtonTimerRef.current = null;
+      if (pointerSelectingRef.current) return;
+      updateAIButton(view);
+    }, delay);
   }
 
   function openInlineAIFromView(view: EditorView | null, fallbackPos?: number, popup?: { popupX: number; popupY: number }) {
@@ -161,23 +190,36 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
             }
           }]),
           EditorView.updateListener.of((update) => {
-            if (!update.docChanged) return;
-            const nextValue = update.state.doc.toString();
-            valueRef.current = nextValue;
-            onChangeRef.current(nextValue);
+            if (update.docChanged) {
+              const nextValue = update.state.doc.toString();
+              valueRef.current = nextValue;
+              onChangeRef.current(nextValue);
+            }
+            if (update.docChanged || update.selectionSet || update.focusChanged || update.geometryChanged) {
+              if (pointerSelectingRef.current) {
+                setAiButton(null);
+                scheduleAIButton(update.view, 260);
+              } else {
+                scheduleAIButton(update.view);
+              }
+            }
           }),
           EditorView.domEventHandlers({
-            mousemove(event, view) {
-              const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-              if (pos == null) {
-                setLineButton(null);
-                return;
-              }
-              const line = view.state.doc.lineAt(pos);
-              const coords = view.coordsAtPos(line.from);
-              const host = wrapperRef.current?.getBoundingClientRect();
-              if (!coords || !host) return;
-              setLineButton({ top: Math.max(0, coords.top - host.top), lineFrom: line.from });
+            pointerdown() {
+              pointerSelectingRef.current = true;
+              clearAIButtonTimer();
+              setAiButton(null);
+            },
+            pointerup(_event, view) {
+              pointerSelectingRef.current = false;
+              scheduleAIButton(view, 220);
+            },
+            pointercancel(_event, view) {
+              pointerSelectingRef.current = false;
+              scheduleAIButton(view, 220);
+            },
+            focus(_event, view) {
+              scheduleAIButton(view, 120);
             },
             blur(_event, view) {
               onCommitRef.current(view.state.doc.toString());
@@ -187,7 +229,9 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
       })
     });
     viewRef.current = view;
+    window.requestAnimationFrame(() => updateAIButton(view));
     return () => {
+      clearAIButtonTimer();
       view.destroy();
       viewRef.current = null;
     };
@@ -214,22 +258,22 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
 
   function openFromLineButton() {
     const view = viewRef.current;
-    if (!view || !lineButton || !wrapperRef.current) return;
+    if (!view || !aiButton || !wrapperRef.current) return;
     const host = wrapperRef.current.getBoundingClientRect();
-    openInlineAIFromView(view, lineButton.lineFrom, {
-      popupX: host.left + 32,
-      popupY: host.top + lineButton.top + 28
+    openInlineAIFromView(view, aiButton.pos, {
+      popupX: host.left + aiButton.left + 28,
+      popupY: host.top + aiButton.top + 28
     });
   }
 
   return (
-    <div className="favorite-code-editor relative h-full min-h-0" ref={wrapperRef} onMouseLeave={() => setLineButton(null)}>
+    <div className="favorite-code-editor relative h-full min-h-0" ref={wrapperRef}>
       <div className="h-full min-h-0" ref={hostRef} />
-      {lineButton ? (
+      {aiButton ? (
         <button
           type="button"
-          className="absolute left-0 z-10 grid size-6 -translate-x-1 place-items-center rounded-md border bg-background text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground"
-          style={{ top: lineButton.top }}
+          className="absolute z-10 grid size-6 -translate-y-1 place-items-center rounded-md border bg-background text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground"
+          style={{ left: aiButton.left, top: aiButton.top }}
           title="AI 插入或替换"
           onMouseDown={(event) => event.preventDefault()}
           onClick={openFromLineButton}

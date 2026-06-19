@@ -31,12 +31,44 @@ export function InlineAIModal({ busy, hasSelection, x, y, onClose, onSubmit }: {
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  const left = Math.max(12, Math.min(x ?? window.innerWidth - 500, window.innerWidth - 492));
-  const top = Math.max(12, Math.min(y ?? 80, window.innerHeight - 260));
+  const clampPosition = (left: number, top: number) => ({
+    left: Math.max(12, Math.min(left, window.innerWidth - 492)),
+    top: Math.max(12, Math.min(top, window.innerHeight - 260))
+  });
+  const [position, setPosition] = useState(() => clampPosition(x ?? window.innerWidth - 500, y ?? 80));
+  const [drag, setDrag] = useState<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
+
+  useEffect(() => {
+    if (!drag) return;
+    const activeDrag = drag;
+    function move(event: PointerEvent) {
+      if (event.pointerId !== activeDrag.pointerId) return;
+      setPosition(clampPosition(event.clientX - activeDrag.offsetX, event.clientY - activeDrag.offsetY));
+    }
+    function end(event: PointerEvent) {
+      if (event.pointerId === activeDrag.pointerId) setDrag(null);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, [drag]);
+
   return (
-    <div className="fixed z-50 w-[min(calc(100vw-2rem),30rem)]" style={{ left, top }}>
+    <div className="fixed z-50 w-[min(calc(100vw-2rem),30rem)]" style={{ left: position.left, top: position.top }}>
       <Card className="grid gap-3 p-3 shadow-xl">
-        <div className="flex items-center justify-between gap-3">
+        <div
+          className="flex cursor-move select-none items-center justify-between gap-3"
+          onPointerDown={(event) => {
+            const bounds = event.currentTarget.closest(".fixed")?.getBoundingClientRect();
+            if (!bounds) return;
+            setDrag({ pointerId: event.pointerId, offsetX: event.clientX - bounds.left, offsetY: event.clientY - bounds.top });
+          }}
+        >
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-sm"><Sparkles className="size-4" /> AI {hasSelection ? "替换选中文字" : "插入到光标处"}</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">输入指令，结果会直接写入正文。</p>
