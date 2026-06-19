@@ -1,9 +1,11 @@
 import React, { KeyboardEvent, useEffect, useRef, useState } from "react";
 import {
   Archive,
+  Bold,
   Check,
   ChevronDown,
   Clock,
+  Code2,
   Copy,
   Download,
   ExternalLink,
@@ -11,13 +13,19 @@ import {
   EyeOff,
   FileText,
   Grid3X3,
+  Heading1,
   Heart,
+  Image as ImageIcon,
+  Italic,
   KeyRound,
+  Link as LinkIcon,
   List,
+  ListOrdered,
   LogOut,
   MoreVertical,
   PanelLeft,
   Plus,
+  Quote,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -46,10 +54,11 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { CodeEditor, type CodeEditorHandle } from "@/components/code-editor";
+import { CodeEditor, type CodeEditorHandle, type MarkdownAction } from "@/components/code-editor";
+import { MarkdownPreview } from "@/components/markdown-preview";
 import { TYPE_META } from "@/app/meta";
 import type { AppUser, FavoriteItem, FavoriteType, InlineAISelection, PromptConfig } from "@/app/types";
-import { categoryLabel, formatDetailDate, formatListDate, isSystemTag, renderMarkdown, truncate } from "@/app/utils";
+import { categoryLabel, formatDetailDate, formatListDate, isSystemTag, truncate } from "@/app/utils";
 
 export function LoginScreen({ onSignIn }: { onSignIn: (provider: string) => void }) {
   return (
@@ -304,6 +313,7 @@ export function DetailPanel(props: {
   onRemoveTag: (tag: string) => void;
   onContentDraft: (value: string) => void;
   onContentCommit: (value: string) => void;
+  onInsertImage: (file: File) => Promise<string>;
   onToggleEdit: () => void;
   onRefreshAiSummary: () => void;
   onRunAI: (promptId: string) => void;
@@ -319,6 +329,19 @@ export function DetailPanel(props: {
 }) {
   const [titleDraft, setTitleDraft] = useState(props.item?.title || "");
   const codeEditorRef = useRef<CodeEditorHandle>(null);
+  const editorImageInputRef = useRef<HTMLInputElement>(null);
+  const markdownTools: { action?: MarkdownAction; label: string; icon: React.ReactNode; onClick?: () => void }[] = [
+    { action: "heading", label: "标题", icon: <Heading1 className="size-3.5" /> },
+    { action: "bold", label: "加粗", icon: <Bold className="size-3.5" /> },
+    { action: "italic", label: "斜体", icon: <Italic className="size-3.5" /> },
+    { action: "link", label: "链接", icon: <LinkIcon className="size-3.5" /> },
+    { action: "quote", label: "引用", icon: <Quote className="size-3.5" /> },
+    { action: "bulletList", label: "无序列表", icon: <List className="size-3.5" /> },
+    { action: "orderedList", label: "有序列表", icon: <ListOrdered className="size-3.5" /> },
+    { action: "inlineCode", label: "行内代码", icon: <Code2 className="size-3.5" /> },
+    { action: "codeBlock", label: "代码块", icon: <Code2 className="size-3.5" /> },
+    { label: "图片", icon: <ImageIcon className="size-3.5" />, onClick: () => editorImageInputRef.current?.click() }
+  ];
 
   useEffect(() => {
     setTitleDraft(props.item?.title || "");
@@ -490,7 +513,7 @@ export function DetailPanel(props: {
         </div>
       </div>
       <ScrollArea className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]]:h-full">
-        <div className={props.contentEditing ? "grid min-h-full min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-4" : "grid gap-3 p-4"}>
+        <div className={props.contentEditing ? "flex min-h-full min-w-0 flex-col gap-3 p-4" : "grid gap-3 p-4"}>
         {props.aiSummaryVisible && props.aiSummary ? (
           <Card className="grid gap-3 p-4">
             <div className="flex items-center gap-2">
@@ -507,10 +530,45 @@ export function DetailPanel(props: {
             </div>
           </Card>
         ) : null}
+        {props.contentEditing && item.type !== "image" ? (
+          <div className="sticky top-0 z-30 min-w-0 rounded-md border bg-background/95 p-1 shadow-sm backdrop-blur">
+            <input
+              className="hidden"
+              type="file"
+              accept="image/*"
+              ref={editorImageInputRef}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (file) void codeEditorRef.current?.insertImage(file);
+              }}
+            />
+            <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+              {markdownTools.map((tool) => (
+                <Tooltip key={tool.label}>
+                  <TooltipTrigger render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0"
+                      aria-label={tool.label}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={tool.onClick ?? (() => tool.action && codeEditorRef.current?.applyMarkdown(tool.action))}
+                    />
+                  }>
+                    {tool.icon}
+                  </TooltipTrigger>
+                  <TooltipContent>{tool.label}</TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {item.type === "image" ? (
           <Card className="grid min-h-[280px] place-items-center overflow-hidden bg-muted p-3"><img className="max-h-[420px] max-w-full object-contain" src={item.content} alt={item.title} /></Card>
         ) : props.contentEditing ? (
-          <Card className="h-full min-h-0 min-w-0 overflow-hidden p-3 ring-0">
+          <Card className="relative min-h-0 min-w-0 flex-1 overflow-hidden p-3 pb-16 ring-0">
             <CodeEditor
               ref={codeEditorRef}
               item={item}
@@ -518,17 +576,21 @@ export function DetailPanel(props: {
               inlineAISelection={props.inlineAISelection}
               onChange={props.onContentDraft}
               onCommit={props.onContentCommit}
+              onInsertImage={props.onInsertImage}
               onOpenInlineAI={props.onOpenInlineAI}
             />
+            <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex items-center justify-between gap-2">
+              <span />
+              <div className="pointer-events-none inline-flex items-center gap-1 rounded-md border bg-background/95 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur">
+                <Check className="size-3" /> 自动保存成功
+              </div>
+            </div>
           </Card>
         ) : (
           <Card className="p-5 ring-0">
-            <article className="grid gap-3 whitespace-pre-wrap text-sm leading-7 text-foreground [&_a]:text-primary [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.content) }} />
+            <MarkdownPreview content={item.content} />
           </Card>
         )}
-        <div className="flex items-center justify-end text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><Check className="size-3" /> 自动保存成功</span>
-        </div>
         </div>
       </ScrollArea>
     </aside>

@@ -11,11 +11,38 @@ import type { FavoriteItem, InlineAISelection } from "@/app/types";
 export type CodeEditorHandle = {
   openInlineAI: () => void;
   focus: () => void;
+  insertImage: (file: File) => Promise<void>;
+  applyMarkdown: (action: MarkdownAction) => void;
 };
+
+export type MarkdownAction = "heading" | "bold" | "italic" | "link" | "quote" | "bulletList" | "orderedList" | "inlineCode" | "codeBlock";
 
 type HighlightRange = { start: number; end: number } | null;
 
 const setInlineAIHighlight = StateEffect.define<HighlightRange>();
+
+function markdownLinkLabel(value: string) {
+  return value.replace(/[\[\]\n\r]/g, " ").trim() || "image";
+}
+
+function lineStart(doc: EditorState["doc"], pos: number) {
+  return doc.lineAt(pos).from;
+}
+
+function prefixSelectedLines(view: EditorView, prefix: (index: number) => string) {
+  const selection = view.state.selection.main;
+  const fromLine = view.state.doc.lineAt(selection.from);
+  const toLine = view.state.doc.lineAt(selection.to);
+  const lines = [];
+  for (let lineNumber = fromLine.number; lineNumber <= toLine.number; lineNumber += 1) {
+    lines.push(view.state.doc.line(lineNumber).text);
+  }
+  const next = lines.map((line, index) => `${prefix(index)}${line || " "}`).join("\n");
+  view.dispatch({
+    changes: { from: fromLine.from, to: toLine.to, insert: next },
+    selection: { anchor: fromLine.from + next.length }
+  });
+}
 
 const inlineAIHighlightField = StateField.define<DecorationSet>({
   create() {
@@ -84,8 +111,9 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
   inlineAISelection: InlineAISelection | null;
   onChange: (value: string) => void;
   onCommit: (value: string) => void;
+  onInsertImage: (file: File) => Promise<string>;
   onOpenInlineAI: (selection: InlineAISelection) => void;
-}>(function CodeEditor({ item, value, inlineAISelection, onChange, onCommit, onOpenInlineAI }, ref) {
+}>(function CodeEditor({ item, value, inlineAISelection, onChange, onCommit, onInsertImage, onOpenInlineAI }, ref) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -96,6 +124,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
   const itemRef = useRef(item);
   const onChangeRef = useRef(onChange);
   const onCommitRef = useRef(onCommit);
+  const onInsertImageRef = useRef(onInsertImage);
   const onOpenInlineAIRef = useRef(onOpenInlineAI);
 
   useEffect(() => {
@@ -103,8 +132,100 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
     itemRef.current = item;
     onChangeRef.current = onChange;
     onCommitRef.current = onCommit;
+    onInsertImageRef.current = onInsertImage;
     onOpenInlineAIRef.current = onOpenInlineAI;
-  }, [item, value, onChange, onCommit, onOpenInlineAI]);
+  }, [item, value, onChange, onCommit, onInsertImage, onOpenInlineAI]);
+
+  async function insertImageFiles(view: EditorView, files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (!imageFiles.length) return false;
+    const selection = view.state.selection.main;
+    let insertAt = selection.from;
+    let replaceTo = selection.to;
+    for (const file of imageFiles) {
+      let url = "";
+      try {
+        url = await onInsertImageRef.current(file);
+      } catch {
+        continue;
+      }
+      const label = markdownLinkLabel((file.name || "image").replace(/\.[^.]+$/, ""));
+      const prefix = insertAt > 0 && view.state.doc.sliceString(insertAt - 1, insertAt) !== "\n" ? "\n" : "";
+      const text = `${prefix}![${label}](${url})\n`;
+      view.dispatch({
+        changes: { from: insertAt, to: replaceTo, insert: text },
+        selection: { anchor: insertAt + text.length }
+      });
+      insertAt += text.length;
+      replaceTo = insertAt;
+    }
+    onCommitRef.current(view.state.doc.toString());
+    return true;
+  }
+
+  function replaceSelection(view: EditorView, text: string, selectFrom?: number, selectTo?: number) {
+    const selection = view.state.selection.main;
+    const from = selection.from;
+    view.dispatch({
+      changes: { from, to: selection.to, insert: text },
+      selection: selectFrom == null || selectTo == null
+        ? { anchor: from + text.length }
+        : { anchor: from + selectFrom, head: from + selectTo }
+    });
+    view.focus();
+  }
+
+  function applyMarkdown(view: EditorView | null, action: MarkdownAction) {
+    if (!view) return;
+    const selection = view.state.selection.main;
+    const selected = view.state.doc.sliceString(selection.from, selection.to);
+    if (action === "heading") {
+      const start = lineStart(view.state.doc, selection.from);
+      view.dispatch({ changes: { from: start, insert: "# " }, selection: { anchor: selection.to + 2 } });
+      view.focus();
+      return;
+    }
+    if (action === "quote") {
+      prefixSelectedLines(view, () => "> ");
+      view.focus();
+      return;
+    }
+    if (action === "bulletList") {
+      prefixSelectedLines(view, () => "- ");
+      view.focus();
+      return;
+    }
+    if (action === "orderedList") {
+      prefixSelectedLines(view, (index) => `${index + 1}. `);
+      view.focus();
+      return;
+    }
+    if (action === "bold") {
+      const body = selected || "加粗文字";
+      replaceSelection(view, `**${body}**`, selected ? undefined : 2, selected ? undefined : 2 + body.length);
+      return;
+    }
+    if (action === "italic") {
+      const body = selected || "斜体文字";
+      replaceSelection(view, `*${body}*`, selected ? undefined : 1, selected ? undefined : 1 + body.length);
+      return;
+    }
+    if (action === "inlineCode") {
+      const body = selected || "code";
+      replaceSelection(view, `\`${body}\``, selected ? undefined : 1, selected ? undefined : 1 + body.length);
+      return;
+    }
+    if (action === "codeBlock") {
+      const body = selected || "code";
+      replaceSelection(view, `\`\`\`\n${body}\n\`\`\``, selected ? undefined : 4, selected ? undefined : 4 + body.length);
+      return;
+    }
+    if (action === "link") {
+      const body = selected || "链接文字";
+      const text = `[${body}](https://)`;
+      replaceSelection(view, text, selected ? text.length - 9 : 1, selected ? text.length - 1 : 1 + body.length);
+    }
+  }
 
   function editorSelection(view: EditorView, fallbackPos?: number) {
     const selection = view.state.selection.main;
@@ -170,6 +291,15 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
     },
     focus() {
       viewRef.current?.focus();
+    },
+    async insertImage(file: File) {
+      const view = viewRef.current;
+      if (!view) return;
+      await insertImageFiles(view, [file]);
+      view.focus();
+    },
+    applyMarkdown(action: MarkdownAction) {
+      applyMarkdown(viewRef.current, action);
     }
   }), []);
 
@@ -208,6 +338,23 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
             }
           }),
           EditorView.domEventHandlers({
+            paste(event, view) {
+              const files = Array.from(event.clipboardData?.files || []);
+              if (!files.some((file) => file.type.startsWith("image/"))) return false;
+              event.preventDefault();
+              void insertImageFiles(view, files);
+              return true;
+            },
+            drop(event, view) {
+              const files = Array.from(event.dataTransfer?.files || []);
+              if (!files.some((file) => file.type.startsWith("image/"))) return false;
+              event.preventDefault();
+              const coords = { x: event.clientX, y: event.clientY };
+              const position = view.posAtCoords(coords);
+              if (position != null) view.dispatch({ selection: { anchor: position } });
+              void insertImageFiles(view, files);
+              return true;
+            },
             pointerdown() {
               pointerSelectingRef.current = true;
               clearAIButtonTimer();

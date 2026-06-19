@@ -1,5 +1,5 @@
 import { ChevronDown, Grid3X3, List } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -47,6 +47,8 @@ export function App() {
   const [showAllTags, setShowAllTags] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [favoritesListWidth, setFavoritesListWidth] = useState(420);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const [status, setStatusValue] = useState("");
   const [toastStatus, setToastStatus] = useState("");
   const [quickInput, setQuickInput] = useState("");
@@ -344,6 +346,20 @@ export function App() {
     setModalTab("favorite");
     setStatus("图片已保存");
     await refreshItems(context, item.id);
+  }
+
+  async function uploadEditorImage(file: File) {
+    if (!user || !selectedItem) throw new Error("请先选择一条收藏");
+    setStatus("正在上传图片");
+    try {
+      const imageId = crypto.randomUUID();
+      const uploaded = await uploadImageFor(context, user.id, `${selectedItem.id}/${imageId}`, file);
+      setStatus("图片已插入正文");
+      return uploaded.publicUrl as string;
+    } catch (error: any) {
+      setStatus(`图片插入失败：${error.message}`);
+      throw error;
+    }
   }
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
@@ -814,9 +830,50 @@ export function App() {
     return <LoginScreen onSignIn={signIn} />;
   }
 
+  function resizeFavoritesList(event: ReactPointerEvent<HTMLButtonElement>) {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    event.preventDefault();
+    const firstColumn = workspace.firstElementChild as HTMLElement | null;
+    const workspaceBounds = workspace.getBoundingClientRect();
+    const firstColumnWidth = firstColumn && getComputedStyle(firstColumn).display !== "none"
+      ? firstColumn.getBoundingClientRect().width
+      : 0;
+    const handleWidth = 6;
+    const minListWidth = 280;
+    const maxListWidth = Math.max(minListWidth, workspaceBounds.width - firstColumnWidth - handleWidth - 320);
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function applyWidth(clientX: number) {
+      const rawWidth = clientX - workspaceBounds.left - firstColumnWidth;
+      setFavoritesListWidth(Math.max(minListWidth, Math.min(rawWidth, maxListWidth)));
+    }
+
+    function move(pointerEvent: PointerEvent) {
+      applyWidth(pointerEvent.clientX);
+    }
+
+    function stop() {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    }
+
+    applyWidth(event.clientX);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  }
+
   const workspaceGridClass = sidebarCollapsed
-    ? "grid min-h-0 overflow-hidden grid-cols-[72px_minmax(320px,clamp(360px,36vw,560px))_minmax(360px,1fr)] max-lg:grid-cols-[72px_minmax(300px,0.95fr)_minmax(320px,1.2fr)] max-md:grid-cols-1 max-md:overflow-auto max-md:[&>aside:first-child]:hidden"
-    : "grid min-h-0 overflow-hidden grid-cols-[clamp(220px,18vw,280px)_minmax(320px,clamp(340px,32vw,520px))_minmax(360px,1fr)] max-xl:grid-cols-[clamp(200px,20vw,240px)_minmax(300px,clamp(320px,34vw,440px))_minmax(320px,1fr)] max-lg:grid-cols-[minmax(280px,0.95fr)_minmax(320px,1.2fr)] max-lg:[&>aside:first-child]:hidden max-md:grid-cols-1 max-md:overflow-auto";
+    ? "grid min-h-0 overflow-hidden grid-cols-[72px_var(--favorites-list-width)_6px_minmax(360px,1fr)] max-lg:grid-cols-[72px_var(--favorites-list-width)_6px_minmax(320px,1fr)] max-md:grid-cols-1 max-md:overflow-auto max-md:[&>aside:first-child]:hidden"
+    : "grid min-h-0 overflow-hidden grid-cols-[clamp(220px,18vw,280px)_var(--favorites-list-width)_6px_minmax(360px,1fr)] max-xl:grid-cols-[clamp(200px,20vw,240px)_var(--favorites-list-width)_6px_minmax(320px,1fr)] max-lg:grid-cols-[var(--favorites-list-width)_6px_minmax(320px,1fr)] max-lg:[&>aside:first-child]:hidden max-md:grid-cols-1 max-md:overflow-auto";
 
   return (
     <TooltipProvider>
@@ -843,7 +900,11 @@ export function App() {
         onPromptInstall={promptInstall}
         onSignOut={signOut}
       />
-      <div className={workspaceGridClass}>
+      <div
+        className={workspaceGridClass}
+        ref={workspaceRef}
+        style={{ "--favorites-list-width": `${favoritesListWidth}px` } as any}
+      >
         <Sidebar
           collapsed={sidebarCollapsed}
           items={items}
@@ -878,8 +939,8 @@ export function App() {
           onToggleTags={() => setShowAllTags((value) => !value)}
           onManageTags={() => setTagManagerModal(true)}
         />
-        <section className="min-h-0 min-w-0 border-r bg-background">
-          <Card className="flex h-full flex-col rounded-none border-0 border-r bg-card shadow-none">
+        <section className="min-h-0 min-w-0 bg-background">
+          <Card className="flex h-full flex-col rounded-none border-0 bg-card shadow-none">
             <CardHeader className="!flex flex-nowrap items-center justify-between gap-1 space-y-0 border-b px-1.5 py-0.5">
               <CardTitle className="shrink-0 whitespace-nowrap text-xs">全部收藏 <span className="text-xs text-muted-foreground">{filteredItems.length}</span></CardTitle>
               <div className="flex shrink-0 items-center gap-1">
@@ -934,6 +995,15 @@ export function App() {
             </ScrollArea>
           </Card>
         </section>
+        <button
+          type="button"
+          className="group relative z-10 h-full min-h-0 cursor-col-resize touch-none bg-transparent outline-none max-md:hidden"
+          aria-label="调整收藏列表宽度"
+          title="拖动调整宽度"
+          onPointerDown={resizeFavoritesList}
+        >
+          <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors group-hover:bg-primary group-focus-visible:bg-primary" />
+        </button>
         <DetailPanel
           item={selectedItem}
           contentEditing={contentEditing}
@@ -961,6 +1031,7 @@ export function App() {
           onRemoveTag={removeTagFromSelected}
           onContentDraft={updateContentDraft}
           onContentCommit={commitContentDraft}
+          onInsertImage={uploadEditorImage}
           onToggleEdit={() => setContentEditing((value) => !value)}
           onRefreshAiSummary={refreshAiSummary}
           onRunAI={runAI}
