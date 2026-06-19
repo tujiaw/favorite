@@ -127,9 +127,11 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
     const pos = view.state.selection.main.head;
     const coords = view.coordsAtPos(pos);
     if (!host || !coords) return;
+    const buttonSize = 24;
+    const gap = 6;
     setAiButton({
-      left: Math.max(0, Math.min(coords.left - host.left + 8, host.width - 28)),
-      top: Math.max(0, coords.top - host.top - 4),
+      left: Math.max(0, Math.min(coords.left - host.left + 10, host.width - buttonSize)),
+      top: Math.max(0, coords.top - host.top - buttonSize - gap),
       pos
     });
   }
@@ -179,6 +181,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
         doc: valueRef.current,
         extensions: [
           basicSetup,
+          EditorView.lineWrapping,
           languageExtension(itemRef.current.type),
           editorTheme,
           inlineAIHighlightField,
@@ -267,8 +270,8 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
   }
 
   return (
-    <div className="favorite-code-editor relative h-full min-h-0" ref={wrapperRef}>
-      <div className="h-full min-h-0" ref={hostRef} />
+    <div className="favorite-code-editor relative h-full min-h-0 w-full min-w-0 overflow-hidden" ref={wrapperRef}>
+      <div className="h-full min-h-0 w-full min-w-0" ref={hostRef} />
       {aiButton ? (
         <button
           type="button"

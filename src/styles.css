@@ -166,15 +166,18 @@
 
 .favorite-code-editor .cm-editor {
   height: 100%;
+  max-width: 100%;
   border-radius: var(--radius-md);
 }
 
 .favorite-code-editor .cm-scroller {
   height: 100%;
+  overflow-x: hidden;
 }
 
 .favorite-code-editor .cm-line {
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .favorite-code-editor .cm-inline-ai-selection {

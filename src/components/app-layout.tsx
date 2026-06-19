@@ -391,7 +391,7 @@ export function DetailPanel(props: {
     );
   }
   return (
-    <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] bg-background">
+    <aside className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] bg-background">
       <div className="grid gap-3 border-b bg-background p-4 pb-3">
         <div className="grid min-w-0 grid-cols-[minmax(160px,1fr)_auto] items-center gap-3 rounded-lg border bg-card px-3 py-2">
           <Input
@@ -489,8 +489,8 @@ export function DetailPanel(props: {
           <span className="shrink-0">共 {String(item.content || "").trim().length} 字</span>
         </div>
       </div>
-      <ScrollArea className="min-h-0 [&>[data-slot=scroll-area-viewport]]:h-full">
-        <div className={props.contentEditing ? "grid min-h-full grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-4" : "grid gap-3 p-4"}>
+      <ScrollArea className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]]:h-full">
+        <div className={props.contentEditing ? "grid min-h-full min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-4" : "grid gap-3 p-4"}>
         {props.aiSummaryVisible && props.aiSummary ? (
           <Card className="grid gap-3 p-4">
             <div className="flex items-center gap-2">
@@ -510,7 +510,7 @@ export function DetailPanel(props: {
         {item.type === "image" ? (
           <Card className="grid min-h-[280px] place-items-center overflow-hidden bg-muted p-3"><img className="max-h-[420px] max-w-full object-contain" src={item.content} alt={item.title} /></Card>
         ) : props.contentEditing ? (
-          <Card className="min-h-0 p-3">
+          <Card className="h-full min-h-0 min-w-0 overflow-hidden p-3 ring-0">
             <CodeEditor
               ref={codeEditorRef}
               item={item}
@@ -522,7 +522,7 @@ export function DetailPanel(props: {
             />
           </Card>
         ) : (
-          <Card className="p-5">
+          <Card className="p-5 ring-0">
             <article className="grid gap-3 whitespace-pre-wrap text-sm leading-7 text-foreground [&_a]:text-primary [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_pre]:overflow-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.content) }} />
           </Card>
         )}
