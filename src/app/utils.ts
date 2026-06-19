@@ -1,4 +1,4 @@
-import { loadLLMConfig, loadPrompts } from "@/ai.js";
+import { loadLLMConfig, loadPrompts } from "@/ai/settings";
 import { TYPE_META } from "./meta";
 import type { BitwardenExport, BitwardenItem, FavoriteItem, FavoriteType, LLMConfig, PromptConfig, SortMode } from "./types";
 

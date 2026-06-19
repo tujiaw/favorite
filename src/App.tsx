@@ -17,7 +17,6 @@ import {
   isRunningAsPwa,
   isSystemTag,
   loadVaultPassword,
-  makeLocalSummary,
   normalizeLLMConfig,
   normalizePrompts,
   parseBitwardenExport,
@@ -28,9 +27,9 @@ import {
   validDateString,
   waitForPaint
 } from "@/app/utils";
+import { applyInlineAIEdit, applySavedPrompt, generateFavoriteSummary, isLLMReady, loadLLMConfig, loadPrompts, saveLLMConfig, savePrompts } from "@/ai/index";
 import { DetailPanel, ItemCard, LoginScreen, Sidebar, Topbar } from "@/components/app-layout";
 import { ConfirmModal, CreateModal, InlineAIModal, SettingsModal, TagManagerModal, VaultModal } from "@/components/app-modals";
-import { loadLLMConfig, loadPrompts, runPrompt, saveLLMConfig, savePrompts } from "./ai.js";
 import { decryptSecret, encryptSecret } from "./crypto.js";
 import { createBaseItem, deleteFavoriteFor, listFavoritesFor, loadSettingFor, saveFavoriteFor, saveSettingFor, uploadImageFor } from "./data.js";
 import { localUser, setSessionUser, state as legacyState } from "./state.js";
@@ -741,9 +740,7 @@ export function App() {
     setAiLoading(true);
     setStatus("正在生成 AI 总结");
     try {
-      const summary = llmConfig.baseUrl && llmConfig.apiKey && llmConfig.model
-        ? await runPrompt("请为下面的收藏内容生成 120 字以内的中文摘要，突出用途、关键信息和下一步动作：\n\n", selectedItem.content, llmConfig)
-        : makeLocalSummary(selectedItem);
+      const summary = await generateFavoriteSummary(selectedItem, llmConfig);
       setAiSummaryById((current) => ({ ...current, [selectedItem.id]: summary }));
       setAiSummaryVisible(true);
       setAiSummaryExpanded(false);
@@ -759,7 +756,7 @@ export function App() {
     if (!selectedItem || selectedItem.type === "image" || selectedItem.type === "account") return;
     const prompt = prompts.find((candidate) => candidate.id === promptId);
     if (!prompt) return;
-    if (!llmConfig.baseUrl || !llmConfig.apiKey || !llmConfig.model) {
+    if (!isLLMReady(llmConfig)) {
       setStatus("请先在设置中配置大模型");
       setSettingsModal(true);
       return;
@@ -767,8 +764,7 @@ export function App() {
     setAiLoading(true);
     setStatus(`正在执行：${prompt.name}`);
     try {
-      const result = await runPrompt(prompt.content, selectedItem.content, llmConfig);
-      await updateSelected({ content: result, preview: makePreview(result) });
+      await updateSelected(await applySavedPrompt(selectedItem, prompt, llmConfig));
       setStatus(`已应用：${prompt.name}`);
     } catch (error: any) {
       setStatus(`AI 处理失败：${error.message}`);
@@ -783,7 +779,7 @@ export function App() {
       setInlineAISelection(null);
       return;
     }
-    if (!llmConfig.baseUrl || !llmConfig.apiKey || !llmConfig.model) {
+    if (!isLLMReady(llmConfig)) {
       setStatus("请先在设置中配置大模型");
       setSettingsModal(true);
       return;
@@ -794,21 +790,15 @@ export function App() {
     setInlineAILoading(true);
     setStatus(inlineAISelection.selectedText ? "AI 正在替换选中文字" : "AI 正在生成插入内容");
     try {
-      const hasSelection = inlineAISelection.start !== inlineAISelection.end;
-      const content = selectedItem.content || "";
-      const start = Math.max(0, Math.min(inlineAISelection.start, content.length));
-      const end = Math.max(start, Math.min(inlineAISelection.end, content.length));
-      const prompt = hasSelection
-        ? `你正在帮助编辑一篇收藏内容。请根据用户指令处理 <selected>...</selected> 中的选中文字，并参考全文上下文。只输出可直接替换选中文字的最终内容，不要解释、不要添加引言。\n\n用户指令：${userPrompt}\n\n上下文：\n`
-        : `你正在帮助编辑一篇收藏内容。请根据用户指令生成一段可直接插入到光标处的内容，只输出要插入的最终内容，不要解释、不要添加引言。\n\n用户指令：${userPrompt}\n\n当前全文上下文：\n`;
-      const context = hasSelection
-        ? `${content.slice(0, start)}<selected>${content.slice(start, end)}</selected>${content.slice(end)}`
-        : content;
-      const result = await runPrompt(prompt, context, llmConfig);
-      const nextContent = `${content.slice(0, start)}${result}${content.slice(end)}`;
-      await updateSelected({ content: nextContent, preview: makePreview(nextContent) });
+      const result = await applyInlineAIEdit({
+        item: selectedItem,
+        selection: inlineAISelection,
+        userPrompt,
+        config: llmConfig
+      });
+      await updateSelected({ content: result.content, preview: result.preview });
       setInlineAISelection(null);
-      setStatus(hasSelection ? "AI 已替换选中文字" : "AI 已插入到光标处");
+      setStatus(result.hasSelection ? "AI 已替换选中文字" : "AI 已插入到光标处");
     } catch (error: any) {
       setStatus(`AI 写入失败：${error.message}`);
     } finally {
