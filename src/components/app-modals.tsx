@@ -127,6 +127,7 @@ export function CreateModal(props: {
             <Textarea
               className="!h-[320px] min-h-[320px] max-h-[320px] ![field-sizing:fixed] overflow-y-auto"
               placeholder="粘贴 URL、文本、代码、JSON，或直接粘贴图片。按 Ctrl/⌘ + Enter 保存。"
+              autoFocus
               value={props.quickInput}
               onChange={(event) => props.onQuickInput(event.target.value)}
               onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {

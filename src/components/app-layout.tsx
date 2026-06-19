@@ -490,7 +490,23 @@ export function DetailPanel(props: {
         </div>
       </div>
       <ScrollArea className="min-h-0 [&>[data-slot=scroll-area-viewport]]:h-full">
-        <div className={props.contentEditing ? "grid min-h-full grid-rows-[minmax(0,1fr)_auto_auto] gap-3 p-4" : "grid gap-3 p-4"}>
+        <div className={props.contentEditing ? "grid min-h-full grid-rows-[auto_minmax(0,1fr)_auto] gap-3 p-4" : "grid gap-3 p-4"}>
+        {props.aiSummaryVisible && props.aiSummary ? (
+          <Card className="grid gap-3 p-4">
+            <div className="flex items-center gap-2">
+              <h3 className="inline-flex items-center gap-2 text-sm font-semibold"><Sparkles /> AI 总结</h3>
+              <Button className="ml-auto" variant="ghost" size="icon" title="关闭 AI 总结" onClick={props.onCloseAiSummary}>×</Button>
+            </div>
+            <p className="text-sm text-muted-foreground">{props.aiSummaryExpanded ? props.aiSummary : truncate(props.aiSummary, 120)}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">由 AI 生成，可能不完全准确</span>
+              <Button variant="ghost" size="sm" onClick={props.onApplyAiSummary}><Check /> 应用覆盖</Button>
+              <Button variant="ghost" size="sm" onClick={props.onCopyAiSummary}><Copy /> 复制</Button>
+              <Button variant="ghost" size="sm" onClick={props.onToggleAiSummary}><List /> {props.aiSummaryExpanded ? "收起" : "展开"}</Button>
+              <Button variant="ghost" size="sm" onClick={props.onRefreshAiSummary}><RefreshCw /> 重新生成</Button>
+            </div>
+          </Card>
+        ) : null}
         {item.type === "image" ? (
           <Card className="grid min-h-[280px] place-items-center overflow-hidden bg-muted p-3"><img className="max-h-[420px] max-w-full object-contain" src={item.content} alt={item.title} /></Card>
         ) : props.contentEditing ? (
@@ -513,22 +529,6 @@ export function DetailPanel(props: {
         <div className="flex items-center justify-end text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1"><Check className="size-3" /> 自动保存成功</span>
         </div>
-        {props.aiSummaryVisible && props.aiSummary ? (
-          <Card className="grid gap-3 p-4">
-            <div className="flex items-center gap-2">
-              <h3 className="inline-flex items-center gap-2 text-sm font-semibold"><Sparkles /> AI 总结</h3>
-              <Button variant="ghost" size="icon" title="关闭 AI 总结" onClick={props.onCloseAiSummary}>×</Button>
-            </div>
-            <p className="text-sm text-muted-foreground">{props.aiSummaryExpanded ? props.aiSummary : truncate(props.aiSummary, 120)}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">由 AI 生成，可能不完全准确</span>
-              <Button variant="ghost" size="sm" onClick={props.onApplyAiSummary}><Check /> 应用覆盖</Button>
-              <Button variant="ghost" size="sm" onClick={props.onCopyAiSummary}><Copy /> 复制</Button>
-              <Button variant="ghost" size="sm" onClick={props.onToggleAiSummary}><List /> {props.aiSummaryExpanded ? "收起" : "展开"}</Button>
-              <Button variant="ghost" size="sm" onClick={props.onRefreshAiSummary}><RefreshCw /> 重新生成</Button>
-            </div>
-          </Card>
-        ) : null}
         </div>
       </ScrollArea>
     </aside>
