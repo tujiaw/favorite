@@ -81,7 +81,6 @@ export function App() {
   const [isInstalledPwa, setIsInstalledPwa] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bitwardenFileInputRef = useRef<HTMLInputElement>(null);
-  const draftTimers = useRef(new Map<string, number>());
   const statusToastTimer = useRef<number | null>(null);
 
   const context = useMemo(() => ({ supabaseReady, supabase, user }), [supabaseReady, supabase, user]);
@@ -107,7 +106,6 @@ export function App() {
     return () => {
       window.removeEventListener("beforeinstallprompt", captureInstallPrompt as EventListener);
       window.removeEventListener("appinstalled", clearInstallPrompt);
-      draftTimers.current.forEach((timer) => window.clearTimeout(timer));
       if (statusToastTimer.current) window.clearTimeout(statusToastTimer.current);
     };
   }, []);
@@ -553,24 +551,12 @@ export function App() {
     setStatus(`已删除标签“${tag}”`);
   }
 
-  function updateContentDraft(value: string) {
-    if (!selectedItem) return;
-    const next = { ...selectedItem, content: value, preview: makePreview(value), updated_at: new Date().toISOString() };
-    setItems((current) => current.map((item) => (item.id === next.id ? next : item)));
-    window.clearTimeout(draftTimers.current.get(next.id));
-    draftTimers.current.set(
-      next.id,
-      window.setTimeout(async () => {
-        await saveFavoriteFor(context, next);
-        draftTimers.current.delete(next.id);
-      }, 500)
-    );
+  function updateContentDraft(_value: string) {
+    // Typing stays local to CodeMirror. Save is explicit via toolbar or Ctrl/Cmd+S.
   }
 
   async function commitContentDraft(value: string) {
     if (!selectedItem) return;
-    window.clearTimeout(draftTimers.current.get(selectedItem.id));
-    draftTimers.current.delete(selectedItem.id);
     await updateSelected({ content: value, preview: makePreview(value) });
     setStatus("内容已保存");
   }

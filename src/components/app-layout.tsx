@@ -562,6 +562,21 @@ export function DetailPanel(props: {
                   <TooltipContent>{tool.label}</TooltipContent>
                 </Tooltip>
               ))}
+              <Tooltip>
+                <TooltipTrigger render={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="ml-1 h-7 shrink-0 gap-1.5 px-2 text-xs"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => codeEditorRef.current?.save()}
+                  />
+                }>
+                  <Check className="size-3.5" /> 保存
+                </TooltipTrigger>
+                <TooltipContent>保存 Ctrl/Cmd+S</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         ) : null}
@@ -582,7 +597,7 @@ export function DetailPanel(props: {
             <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex items-center justify-between gap-2">
               <span />
               <div className="pointer-events-none inline-flex items-center gap-1 rounded-md border bg-background/95 px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur">
-                <Check className="size-3" /> 自动保存成功
+                <Check className="size-3" /> Ctrl/Cmd+S 保存
               </div>
             </div>
           </Card>

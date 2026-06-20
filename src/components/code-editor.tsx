@@ -11,6 +11,7 @@ import type { FavoriteItem, InlineAISelection } from "@/app/types";
 export type CodeEditorHandle = {
   openInlineAI: () => void;
   focus: () => void;
+  save: () => void;
   insertImage: (file: File) => Promise<void>;
   applyMarkdown: (action: MarkdownAction) => void;
 };
@@ -159,7 +160,6 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
       insertAt += text.length;
       replaceTo = insertAt;
     }
-    onCommitRef.current(view.state.doc.toString());
     return true;
   }
 
@@ -292,6 +292,11 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
     focus() {
       viewRef.current?.focus();
     },
+    save() {
+      const view = viewRef.current;
+      if (!view) return;
+      onCommitRef.current(view.state.doc.toString());
+    },
     async insertImage(file: File) {
       const view = viewRef.current;
       if (!view) return;
@@ -315,13 +320,22 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
           languageExtension(itemRef.current.type),
           editorTheme,
           inlineAIHighlightField,
-          keymap.of([{
-            key: "Mod-j",
-            run(view) {
-              openInlineAIFromView(view);
-              return true;
+          keymap.of([
+            {
+              key: "Mod-s",
+              run(view) {
+                onCommitRef.current(view.state.doc.toString());
+                return true;
+              }
+            },
+            {
+              key: "Mod-j",
+              run(view) {
+                openInlineAIFromView(view);
+                return true;
+              }
             }
-          }]),
+          ]),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               const nextValue = update.state.doc.toString();
@@ -370,9 +384,6 @@ export const CodeEditor = forwardRef<CodeEditorHandle, {
             },
             focus(_event, view) {
               scheduleAIButton(view, 120);
-            },
-            blur(_event, view) {
-              onCommitRef.current(view.state.doc.toString());
             }
           })
         ]
