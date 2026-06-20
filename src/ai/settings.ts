@@ -63,7 +63,12 @@ export function loadLLMConfig(): LLMConfig {
 }
 
 export function saveLLMConfigs(setting: LLMConfigListSetting) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(setting));
+  const current = loadLLMConfigs();
+  const items = setting.items.length ? setting.items.map(normalizeLLMConfigItem) : current.items;
+  const activeId = setting.activeId && items.some((item) => item.id === setting.activeId)
+    ? setting.activeId
+    : items[0]?.id;
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ activeId, items }));
 }
 
 export function saveLLMConfig(config: LLMConfig) {

@@ -358,7 +358,55 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
   onAddPrompt: () => void;
   onDeletePrompt: (id: string) => void;
 }) {
-  const visibleConfigs = configs.length ? configs : [{ id: "default", name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
+  const initialConfigs = configs.length ? configs : [{ id: "default", name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
+  const [draftConfigs, setDraftConfigs] = useState<LLMConfig[]>(initialConfigs);
+  const [activeConfigId, setActiveConfigId] = useState(config.id || initialConfigs[0]?.id || "default");
+  const [draftPrompts, setDraftPrompts] = useState<PromptConfig[]>(prompts);
+
+  useEffect(() => {
+    const nextConfigs = configs.length ? configs : [{ id: "default", name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
+    setDraftConfigs(nextConfigs);
+    setActiveConfigId(config.id || nextConfigs[0]?.id || "default");
+    setDraftPrompts(prompts);
+  }, [config, configs, prompts]);
+
+  function updateDraftConfig(id: string | undefined, patch: Partial<LLMConfig>) {
+    if (!id) return;
+    setDraftConfigs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function addDraftConfig() {
+    const nextConfig = { id: `llm-${crypto.randomUUID()}`, name: "新模型", baseUrl: "", apiKey: "", model: "" };
+    setDraftConfigs((current) => [...current, nextConfig]);
+    setActiveConfigId(nextConfig.id);
+  }
+
+  function deleteDraftConfig(id?: string) {
+    if (!id) return;
+    setDraftConfigs((current) => {
+      const next = current.filter((item) => item.id !== id);
+      if (next.length) {
+        if (activeConfigId === id) setActiveConfigId(next[0].id || "default");
+        return next;
+      }
+      const fallback = { id: `llm-${crypto.randomUUID()}`, name: "默认模型", baseUrl: "", apiKey: "", model: "" };
+      setActiveConfigId(fallback.id);
+      return [fallback];
+    });
+  }
+
+  function updateDraftPrompt(id: string, patch: Partial<PromptConfig>) {
+    setDraftPrompts((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function addDraftPrompt() {
+    setDraftPrompts((current) => [...current, { id: `prompt-${crypto.randomUUID()}`, name: "新提示词", content: "" }]);
+  }
+
+  function deleteDraftPrompt(id: string) {
+    setDraftPrompts((current) => current.filter((item) => item.id !== id));
+  }
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] !max-w-5xl overflow-hidden sm:!max-w-5xl">
@@ -367,6 +415,23 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
           <DialogDescription>配置大模型与提示词，登录后同步到 Supabase，本地模式保存在当前浏览器</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit}>
+          <input type="hidden" name="llmIds" value={draftConfigs.map((item) => item.id).join(",")} />
+          <input type="hidden" name="activeLlmId" value={activeConfigId} />
+          {draftConfigs.map((modelConfig) => (
+            <div className="hidden" key={`hidden-${modelConfig.id}`}>
+              <input name={`llm-name-${modelConfig.id}`} value={modelConfig.name || ""} readOnly />
+              <input name={`llm-model-${modelConfig.id}`} value={modelConfig.model || ""} readOnly />
+              <input name={`llm-baseUrl-${modelConfig.id}`} value={modelConfig.baseUrl || ""} readOnly />
+              <input name={`llm-apiKey-${modelConfig.id}`} value={modelConfig.apiKey || ""} readOnly />
+            </div>
+          ))}
+          <input type="hidden" name="promptIds" value={draftPrompts.map((item) => item.id).join(",")} />
+          {draftPrompts.map((prompt) => (
+            <div className="hidden" key={`hidden-${prompt.id}`}>
+              <input name={`prompt-name-${prompt.id}`} value={prompt.name || ""} readOnly />
+              <textarea name={`prompt-content-${prompt.id}`} value={prompt.content || ""} readOnly />
+            </div>
+          ))}
           <Tabs defaultValue="llm" orientation="vertical" className="grid min-h-[520px] grid-cols-[160px_minmax(0,1fr)] gap-4 max-md:grid-cols-1">
             <TabsList className="w-full items-stretch justify-start">
               <TabsTrigger value="llm">大模型</TabsTrigger>
@@ -379,11 +444,11 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
                     <h3 className="text-sm font-semibold">大模型</h3>
                     <p className="text-xs text-muted-foreground">兼容 OpenAI 接口格式，自动拼接 <code>/chat/completions</code>。</p>
                   </div>
-                  <Button variant="outline" size="sm" type="button" onClick={onAddConfig}><Plus /> 新增</Button>
+                  <Button variant="outline" size="sm" type="button" onClick={addDraftConfig}><Plus /> 新增</Button>
                 </div>
                 <ScrollArea className="h-[440px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
                   <div className="grid gap-2" role="list">
-                    {visibleConfigs.map((modelConfig, index) => (
+                    {draftConfigs.map((modelConfig, index) => (
                       <Card className="grid gap-2 p-2" size="sm" key={modelConfig.id || index} role="listitem">
                         <div className="grid min-w-0 grid-cols-[56px_minmax(140px,0.8fr)_minmax(140px,0.8fr)_36px] items-center gap-2 max-lg:grid-cols-[56px_minmax(0,1fr)_minmax(0,1fr)_36px]">
                           <Label className="inline-flex w-14 shrink-0 items-center gap-1.5 whitespace-nowrap text-xs">
@@ -392,22 +457,23 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
                               name="activeLlmId"
                               type="radio"
                               value={modelConfig.id}
-                              defaultChecked={(config.id && modelConfig.id === config.id) || (!config.id && index === 0)}
+                              checked={modelConfig.id === activeConfigId || (!activeConfigId && index === 0)}
+                              onChange={() => modelConfig.id && setActiveConfigId(modelConfig.id)}
                             />
                             使用
                           </Label>
-                          <Input className="h-7 min-w-0" name={`llm-name-${modelConfig.id}`} defaultValue={modelConfig.name || ""} placeholder="配置名称" />
-                          <Input className="h-7 min-w-0" name={`llm-model-${modelConfig.id}`} placeholder="模型" defaultValue={modelConfig.model} />
-                          <Button variant="ghost" size="icon" type="button" onClick={() => onDeleteConfig(modelConfig.id)} title="删除"><Trash2 /></Button>
+                          <Input className="h-7 min-w-0" value={modelConfig.name || ""} placeholder="配置名称" onChange={(event) => updateDraftConfig(modelConfig.id, { name: event.target.value })} />
+                          <Input className="h-7 min-w-0" placeholder="模型" value={modelConfig.model} onChange={(event) => updateDraftConfig(modelConfig.id, { model: event.target.value })} />
+                          <Button variant="ghost" size="icon" type="button" onClick={() => deleteDraftConfig(modelConfig.id)} title="删除"><Trash2 /></Button>
                         </div>
                         <div className="grid gap-2 md:grid-cols-[minmax(0,1.2fr)_minmax(160px,0.8fr)]">
                           <Label className="grid gap-1">
                             <span className="text-[11px] text-muted-foreground">Base URL</span>
-                            <Input className="h-7 min-w-0" name={`llm-baseUrl-${modelConfig.id}`} placeholder="https://api.openai.com/v1" defaultValue={modelConfig.baseUrl} />
+                            <Input className="h-7 min-w-0" placeholder="https://api.openai.com/v1" value={modelConfig.baseUrl} onChange={(event) => updateDraftConfig(modelConfig.id, { baseUrl: event.target.value })} />
                           </Label>
                           <Label className="grid gap-1">
                             <span className="text-[11px] text-muted-foreground">API Key</span>
-                            <Input className="h-7 min-w-0" name={`llm-apiKey-${modelConfig.id}`} type="password" placeholder="sk-..." defaultValue={modelConfig.apiKey} />
+                            <Input className="h-7 min-w-0" type="password" placeholder="sk-..." value={modelConfig.apiKey} onChange={(event) => updateDraftConfig(modelConfig.id, { apiKey: event.target.value })} />
                           </Label>
                         </div>
                       </Card>
@@ -423,17 +489,17 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
                     <h3 className="text-sm font-semibold">提示词</h3>
                     <p className="text-xs text-muted-foreground">每条提示词会作为 AI 下拉菜单的一项。</p>
                   </div>
-                  <Button variant="outline" size="sm" type="button" onClick={onAddPrompt}><Plus /> 新增</Button>
+                  <Button variant="outline" size="sm" type="button" onClick={addDraftPrompt}><Plus /> 新增</Button>
                 </div>
                 <ScrollArea className="h-[440px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
                   <div className="grid gap-2" role="list">
-                    {prompts.map((prompt) => (
+                    {draftPrompts.map((prompt) => (
                       <Card className="grid gap-2 p-2" size="sm" key={prompt.id} role="listitem">
                         <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
-                          <Input className="h-7" name={`prompt-name-${prompt.id}`} defaultValue={prompt.name} placeholder="提示词名称" />
-                          <Button variant="ghost" size="icon" type="button" onClick={() => onDeletePrompt(prompt.id)} title="删除"><Trash2 /></Button>
+                          <Input className="h-7" value={prompt.name} placeholder="提示词名称" onChange={(event) => updateDraftPrompt(prompt.id, { name: event.target.value })} />
+                          <Button variant="ghost" size="icon" type="button" onClick={() => deleteDraftPrompt(prompt.id)} title="删除"><Trash2 /></Button>
                         </div>
-                        <Textarea className="min-h-20" name={`prompt-content-${prompt.id}`} defaultValue={prompt.content} placeholder="提示词内容，将拼接到正文之前" />
+                        <Textarea className="min-h-20" value={prompt.content} placeholder="提示词内容，将拼接到正文之前" onChange={(event) => updateDraftPrompt(prompt.id, { content: event.target.value })} />
                       </Card>
                     ))}
                   </div>

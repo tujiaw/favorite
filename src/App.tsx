@@ -714,19 +714,35 @@ export function App() {
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const nextConfigs = llmConfigs.map((config) => ({
-      id: config.id || `llm-${crypto.randomUUID()}`,
-      name: String(form.get(`llm-name-${config.id}`) || "").trim() || "未命名模型",
-      baseUrl: String(form.get(`llm-baseUrl-${config.id}`) || "").trim(),
-      apiKey: String(form.get(`llm-apiKey-${config.id}`) || "").trim(),
-      model: String(form.get(`llm-model-${config.id}`) || "").trim()
-    }));
+    const llmIds = String(form.get("llmIds") || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const sourceConfigIds = llmIds.length
+      ? llmIds
+      : (llmConfigs.length ? llmConfigs : [{ ...llmConfig, id: llmConfig.id || "default", name: llmConfig.name || "默认模型" }])
+        .map((config) => config.id || `llm-${crypto.randomUUID()}`);
+    const nextConfigs = sourceConfigIds.map((id) => {
+      const fallback = llmConfigs.find((config) => config.id === id) || (llmConfig.id === id ? llmConfig : null);
+      return {
+        id,
+        name: String(form.get(`llm-name-${id}`) || fallback?.name || "").trim() || "未命名模型",
+        baseUrl: String(form.get(`llm-baseUrl-${id}`) || fallback?.baseUrl || "").trim(),
+        apiKey: String(form.get(`llm-apiKey-${id}`) || fallback?.apiKey || "").trim(),
+        model: String(form.get(`llm-model-${id}`) || fallback?.model || "").trim()
+      };
+    });
     const activeId = String(form.get("activeLlmId") || nextConfigs[0]?.id || "");
     const nextConfig = nextConfigs.find((config) => config.id === activeId) || nextConfigs[0] || { id: "default", name: "默认模型", baseUrl: "", apiKey: "", model: "" };
-    const nextPrompts = prompts.map((prompt) => ({
-      id: prompt.id,
-      name: String(form.get(`prompt-name-${prompt.id}`) || "").trim() || "未命名",
-      content: String(form.get(`prompt-content-${prompt.id}`) || "").trim()
+    const promptIds = String(form.get("promptIds") || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const sourcePromptIds = promptIds.length ? promptIds : prompts.map((prompt) => prompt.id);
+    const nextPrompts = sourcePromptIds.map((id) => ({
+      id,
+      name: String(form.get(`prompt-name-${id}`) || "").trim() || "未命名",
+      content: String(form.get(`prompt-content-${id}`) || "").trim()
     }));
     setLlmConfig(nextConfig);
     setLlmConfigs(nextConfigs);
@@ -734,7 +750,7 @@ export function App() {
     saveLLMConfigs({ activeId: nextConfig.id, items: nextConfigs });
     savePrompts(nextPrompts);
     try {
-      await saveSettingFor(context, LLM_CONFIG_SETTING_KEY, { activeId: nextConfig.id, items: nextConfigs });
+      await saveSettingFor(context, LLM_CONFIG_SETTING_KEY, { activeId: nextConfig.id, items: nextConfigs.length ? nextConfigs : [nextConfig] });
       await saveSettingFor(context, PROMPTS_SETTING_KEY, nextPrompts);
       setSettingsModal(false);
       setStatus(supabaseReady ? "设置已保存到 Supabase" : "设置已保存到本地");
@@ -744,13 +760,17 @@ export function App() {
   }
 
   function addLLMConfigRow() {
-    setLlmConfigs((current) => [...current, { id: `llm-${crypto.randomUUID()}`, name: "新模型", baseUrl: "", apiKey: "", model: "" }]);
+    setLlmConfigs((current) => [
+      ...(current.length ? current : [{ ...llmConfig, id: llmConfig.id || "default", name: llmConfig.name || "默认模型" }]),
+      { id: `llm-${crypto.randomUUID()}`, name: "新模型", baseUrl: "", apiKey: "", model: "" }
+    ]);
   }
 
   function deleteLLMConfigRow(id?: string) {
     if (!id) return;
     setLlmConfigs((current) => {
-      const next = current.filter((config) => config.id !== id);
+      const base = current.length ? current : [{ ...llmConfig, id: llmConfig.id || "default", name: llmConfig.name || "默认模型" }];
+      const next = base.filter((config) => config.id !== id);
       return next.length ? next : [{ id: `llm-${crypto.randomUUID()}`, name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
     });
   }
@@ -1119,7 +1139,7 @@ export function App() {
       {settingsModal ? (
         <SettingsModal
           config={llmConfig}
-          configs={llmConfigs}
+          configs={llmConfigs.length ? llmConfigs : [{ ...llmConfig, id: llmConfig.id || "default", name: llmConfig.name || "默认模型" }]}
           prompts={prompts}
           status={status}
           onClose={() => setSettingsModal(false)}
