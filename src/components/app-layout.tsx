@@ -28,6 +28,7 @@ import {
   Quote,
   RefreshCw,
   Search,
+  Settings,
   ShieldCheck,
   Sparkles,
   Star,
@@ -133,7 +134,7 @@ export function Topbar(props: {
         </InputGroup>
         <div className="flex min-w-0 items-center justify-end gap-2 max-md:gap-1">
           <Button onClick={props.onCreate}><Plus /> 收藏</Button>
-          <IconButtonWithTooltip label="AI 智能整理" variant="secondary" onClick={props.onSettings}><Sparkles /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="设置" variant="secondary" onClick={props.onSettings}><Settings /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="刷新同步" onClick={props.onRefresh}><RefreshCw /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="保险箱" variant={props.hasVault ? "secondary" : "ghost"} onClick={props.onOpenVault}><ShieldCheck /></IconButtonWithTooltip>
           <IconButtonWithTooltip

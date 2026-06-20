@@ -17,8 +17,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { LLMConfig, ModalTab, PromptConfig } from "@/app/types";
@@ -346,65 +346,107 @@ export function TagManagerModal({ tags, onClose, onRename, onDelete }: {
   );
 }
 
-export function SettingsModal({ config, prompts, status, onClose, onSubmit, onAddPrompt, onDeletePrompt }: {
+export function SettingsModal({ config, configs, prompts, status, onClose, onSubmit, onAddConfig, onDeleteConfig, onAddPrompt, onDeletePrompt }: {
   config: LLMConfig;
+  configs: LLMConfig[];
   prompts: PromptConfig[];
   status: string;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onAddConfig: () => void;
+  onDeleteConfig: (id?: string) => void;
   onAddPrompt: () => void;
   onDeletePrompt: (id: string) => void;
 }) {
+  const visibleConfigs = configs.length ? configs : [{ id: "default", name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] !max-w-5xl overflow-hidden sm:!max-w-5xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
           <DialogDescription>配置大模型与提示词，登录后同步到 Supabase，本地模式保存在当前浏览器</DialogDescription>
         </DialogHeader>
-      <form onSubmit={onSubmit}>
-        <div className="grid gap-3">
-          <h3 className="text-sm font-semibold">大模型配置</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Label className="grid gap-2 sm:col-span-2">
-              <span>Base URL</span>
-              <Input name="baseUrl" placeholder="https://api.openai.com/v1" defaultValue={config.baseUrl} />
-            </Label>
-            <Label className="grid gap-2">
-              <span>模型</span>
-              <Input name="model" placeholder="gpt-4o-mini" defaultValue={config.model} />
-            </Label>
-            <Label className="grid gap-2 sm:col-span-2">
-              <span>API Key</span>
-              <Input name="apiKey" type="password" placeholder="sk-..." defaultValue={config.apiKey} />
-            </Label>
-          </div>
-          <p className="text-xs text-muted-foreground">兼容 OpenAI 接口格式，自动拼接 <code>/chat/completions</code>。</p>
-        </div>
-        <Separator className="my-4" />
-        <div className="grid gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold">提示词</h3>
-            <Button variant="outline" size="sm" type="button" onClick={onAddPrompt}><Plus /> 新增</Button>
-          </div>
-          <div className="grid max-h-[320px] gap-3 overflow-auto pr-1">
-            {prompts.map((prompt) => (
-              <Card className="grid gap-3 p-3" key={prompt.id}>
-                <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
-                  <Input name={`prompt-name-${prompt.id}`} defaultValue={prompt.name} placeholder="提示词名称" />
-                  <Button variant="ghost" size="icon" type="button" onClick={() => onDeletePrompt(prompt.id)} title="删除"><Trash2 /></Button>
+        <form onSubmit={onSubmit}>
+          <Tabs defaultValue="llm" orientation="vertical" className="grid min-h-[520px] grid-cols-[160px_minmax(0,1fr)] gap-4 max-md:grid-cols-1">
+            <TabsList className="w-full items-stretch justify-start">
+              <TabsTrigger value="llm">大模型</TabsTrigger>
+              <TabsTrigger value="prompts">提示词</TabsTrigger>
+            </TabsList>
+            <TabsContent value="llm" className="min-w-0">
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">大模型</h3>
+                    <p className="text-xs text-muted-foreground">兼容 OpenAI 接口格式，自动拼接 <code>/chat/completions</code>。</p>
+                  </div>
+                  <Button variant="outline" size="sm" type="button" onClick={onAddConfig}><Plus /> 新增</Button>
                 </div>
-                <Textarea name={`prompt-content-${prompt.id}`} defaultValue={prompt.content} placeholder="提示词内容，将拼接到正文之前" />
-              </Card>
-            ))}
-          </div>
-        </div>
-        <DialogFooter className="mt-4">
-          <span className="mr-auto text-sm text-muted-foreground">{status}</span>
-          <Button type="button" variant="ghost" onClick={onClose}>取消</Button>
-          <Button type="submit"><Check /> 保存</Button>
-        </DialogFooter>
-      </form>
+                <ScrollArea className="h-[440px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
+                  <div className="grid gap-2" role="list">
+                    {visibleConfigs.map((modelConfig, index) => (
+                      <Card className="grid gap-2 p-2" size="sm" key={modelConfig.id || index} role="listitem">
+                        <div className="grid min-w-0 grid-cols-[56px_minmax(140px,0.8fr)_minmax(140px,0.8fr)_36px] items-center gap-2 max-lg:grid-cols-[56px_minmax(0,1fr)_minmax(0,1fr)_36px]">
+                          <Label className="inline-flex w-14 shrink-0 items-center gap-1.5 whitespace-nowrap text-xs">
+                            <input
+                              className="shrink-0"
+                              name="activeLlmId"
+                              type="radio"
+                              value={modelConfig.id}
+                              defaultChecked={(config.id && modelConfig.id === config.id) || (!config.id && index === 0)}
+                            />
+                            使用
+                          </Label>
+                          <Input className="h-7 min-w-0" name={`llm-name-${modelConfig.id}`} defaultValue={modelConfig.name || ""} placeholder="配置名称" />
+                          <Input className="h-7 min-w-0" name={`llm-model-${modelConfig.id}`} placeholder="模型" defaultValue={modelConfig.model} />
+                          <Button variant="ghost" size="icon" type="button" onClick={() => onDeleteConfig(modelConfig.id)} title="删除"><Trash2 /></Button>
+                        </div>
+                        <div className="grid gap-2 md:grid-cols-[minmax(0,1.2fr)_minmax(160px,0.8fr)]">
+                          <Label className="grid gap-1">
+                            <span className="text-[11px] text-muted-foreground">Base URL</span>
+                            <Input className="h-7 min-w-0" name={`llm-baseUrl-${modelConfig.id}`} placeholder="https://api.openai.com/v1" defaultValue={modelConfig.baseUrl} />
+                          </Label>
+                          <Label className="grid gap-1">
+                            <span className="text-[11px] text-muted-foreground">API Key</span>
+                            <Input className="h-7 min-w-0" name={`llm-apiKey-${modelConfig.id}`} type="password" placeholder="sk-..." defaultValue={modelConfig.apiKey} />
+                          </Label>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </TabsContent>
+            <TabsContent value="prompts" className="min-w-0">
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">提示词</h3>
+                    <p className="text-xs text-muted-foreground">每条提示词会作为 AI 下拉菜单的一项。</p>
+                  </div>
+                  <Button variant="outline" size="sm" type="button" onClick={onAddPrompt}><Plus /> 新增</Button>
+                </div>
+                <ScrollArea className="h-[440px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
+                  <div className="grid gap-2" role="list">
+                    {prompts.map((prompt) => (
+                      <Card className="grid gap-2 p-2" size="sm" key={prompt.id} role="listitem">
+                        <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
+                          <Input className="h-7" name={`prompt-name-${prompt.id}`} defaultValue={prompt.name} placeholder="提示词名称" />
+                          <Button variant="ghost" size="icon" type="button" onClick={() => onDeletePrompt(prompt.id)} title="删除"><Trash2 /></Button>
+                        </div>
+                        <Textarea className="min-h-20" name={`prompt-content-${prompt.id}`} defaultValue={prompt.content} placeholder="提示词内容，将拼接到正文之前" />
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </TabsContent>
+          </Tabs>
+          <DialogFooter className="mt-4">
+            <span className="mr-auto text-sm text-muted-foreground">{status}</span>
+            <Button type="button" variant="ghost" onClick={onClose}>取消</Button>
+            <Button type="submit"><Check /> 保存</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

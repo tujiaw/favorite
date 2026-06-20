@@ -21,7 +21,7 @@ export type FavoriteItem = {
 export type AppUser = { id: string; email: string; name: string };
 export type SortMode = "updated_at" | "use_count" | "title";
 export type ModalTab = "favorite" | "account";
-export type LLMConfig = { baseUrl: string; apiKey: string; model: string };
+export type LLMConfig = { id?: string; name?: string; baseUrl: string; apiKey: string; model: string };
 export type PromptConfig = { id: string; name: string; content: string };
 export type InlineAISelection = {
   itemId: string;

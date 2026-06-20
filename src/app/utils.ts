@@ -1,4 +1,4 @@
-import { loadLLMConfig, loadPrompts } from "@/ai/settings";
+import { loadLLMConfig, loadLLMConfigs, loadPrompts, type LLMConfigListSetting } from "@/ai/settings";
 import { TYPE_META } from "./meta";
 import type { BitwardenExport, BitwardenItem, FavoriteItem, FavoriteType, LLMConfig, PromptConfig, SortMode } from "./types";
 
@@ -130,13 +130,37 @@ export function isRunningAsPwa() {
 }
 
 export function normalizeLLMConfig(value: unknown): LLMConfig {
-  if (!value || typeof value !== "object") return loadLLMConfig();
-  const candidate = value as Partial<LLMConfig>;
+  const setting = normalizeLLMConfigs(value);
+  return setting.items.find((item) => item.id === setting.activeId) || setting.items[0] || loadLLMConfig();
+}
+
+function normalizeLLMConfigItem(value: unknown): LLMConfig {
+  const candidate = value && typeof value === "object" ? value as Partial<LLMConfig> : {};
   return {
+    id: typeof candidate.id === "string" && candidate.id ? candidate.id : `llm-${crypto.randomUUID()}`,
+    name: typeof candidate.name === "string" && candidate.name.trim() ? candidate.name : "默认模型",
     baseUrl: typeof candidate.baseUrl === "string" ? candidate.baseUrl : "",
     apiKey: typeof candidate.apiKey === "string" ? candidate.apiKey : "",
     model: typeof candidate.model === "string" ? candidate.model : ""
   };
+}
+
+export function normalizeLLMConfigs(value: unknown): LLMConfigListSetting {
+  if (!value || typeof value !== "object") return loadLLMConfigs();
+  if (Array.isArray(value)) {
+    const items = value.map(normalizeLLMConfigItem);
+    return { activeId: items[0]?.id, items: items.length ? items : loadLLMConfigs().items };
+  }
+  const candidate = value as Partial<LLMConfigListSetting> & Partial<LLMConfig>;
+  if (Array.isArray(candidate.items)) {
+    const items = candidate.items.map(normalizeLLMConfigItem);
+    return {
+      activeId: typeof candidate.activeId === "string" ? candidate.activeId : items[0]?.id,
+      items: items.length ? items : loadLLMConfigs().items
+    };
+  }
+  const item = normalizeLLMConfigItem(candidate);
+  return { activeId: item.id, items: [item] };
 }
 
 export function normalizePrompts(value: unknown): PromptConfig[] {

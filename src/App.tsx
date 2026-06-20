@@ -18,6 +18,7 @@ import {
   isSystemTag,
   loadVaultPassword,
   normalizeLLMConfig,
+  normalizeLLMConfigs,
   normalizePrompts,
   parseBitwardenExport,
   safeFilename,
@@ -27,7 +28,7 @@ import {
   validDateString,
   waitForPaint
 } from "@/app/utils";
-import { applyInlineAIEdit, applySavedPrompt, generateFavoriteSummary, isLLMReady, loadLLMConfig, loadPrompts, saveLLMConfig, savePrompts } from "@/ai/index";
+import { applyInlineAIEdit, applySavedPrompt, generateFavoriteSummary, isLLMReady, loadLLMConfig, loadLLMConfigs, loadPrompts, saveLLMConfigs, savePrompts } from "@/ai/index";
 import { DetailPanel, ItemCard, LoginScreen, Sidebar, Topbar } from "@/components/app-layout";
 import { ConfirmModal, CreateModal, InlineAIModal, SettingsModal, TagManagerModal, VaultModal } from "@/components/app-modals";
 import { decryptSecret, encryptSecret } from "./crypto.js";
@@ -70,6 +71,7 @@ export function App() {
   const [settingsModal, setSettingsModal] = useState(false);
   const [tagManagerModal, setTagManagerModal] = useState(false);
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({ baseUrl: "", apiKey: "", model: "" });
+  const [llmConfigs, setLlmConfigs] = useState<LLMConfig[]>([]);
   const [prompts, setPrompts] = useState<PromptConfig[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSummaryVisible, setAiSummaryVisible] = useState(false);
@@ -120,20 +122,24 @@ export function App() {
     bridgeState.vaultPassword = vaultPassword;
     bridgeState.vaultExpiresAt = vaultExpiresAt;
     bridgeState.llmConfig = llmConfig;
+    bridgeState.llmConfigs = llmConfigs;
     bridgeState.prompts = prompts;
-  }, [items, llmConfig, prompts, selectedId, supabase, supabaseReady, user, vaultExpiresAt, vaultPassword]);
+  }, [items, llmConfig, llmConfigs, prompts, selectedId, supabase, supabaseReady, user, vaultExpiresAt, vaultPassword]);
 
   async function boot() {
     setIsInstalledPwa(isRunningAsPwa());
     const savedVault = loadVaultPassword();
-    const savedConfig = loadLLMConfig();
+    const savedConfigSetting = loadLLMConfigs();
+    const savedConfig = savedConfigSetting.items.find((item) => item.id === savedConfigSetting.activeId) || loadLLMConfig();
     const savedPrompts = loadPrompts();
     setVaultPasswordState(savedVault.password);
     setVaultExpiresAt(savedVault.expiresAt);
     setLlmConfig(savedConfig);
+    setLlmConfigs(savedConfigSetting.items);
     setPrompts(savedPrompts);
     const bridgeState = legacyState as any;
     bridgeState.llmConfig = savedConfig;
+    bridgeState.llmConfigs = savedConfigSetting.items;
     bridgeState.prompts = savedPrompts;
 
     if (new URLSearchParams(window.location.search).get("demo") === "1") {
@@ -241,12 +247,15 @@ export function App() {
   ) {
     if (!nextContext.user) return;
     try {
-      const nextConfig = normalizeLLMConfig(await loadSettingFor(nextContext, LLM_CONFIG_SETTING_KEY, fallbackConfig));
+      const nextConfigSetting = normalizeLLMConfigs(await loadSettingFor(nextContext, LLM_CONFIG_SETTING_KEY, fallbackConfig));
+      const nextConfig = nextConfigSetting.items.find((item) => item.id === nextConfigSetting.activeId) || nextConfigSetting.items[0] || normalizeLLMConfig(fallbackConfig);
       const nextPrompts = normalizePrompts(await loadSettingFor(nextContext, PROMPTS_SETTING_KEY, fallbackPrompts));
       setLlmConfig(nextConfig);
+      setLlmConfigs(nextConfigSetting.items);
       setPrompts(nextPrompts);
       const bridgeState = legacyState as any;
       bridgeState.llmConfig = nextConfig;
+      bridgeState.llmConfigs = nextConfigSetting.items;
       bridgeState.prompts = nextPrompts;
     } catch (error: any) {
       setStatus(`配置加载失败：${error.message}`);
@@ -705,28 +714,45 @@ export function App() {
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const nextConfig = {
-      baseUrl: String(form.get("baseUrl") || "").trim(),
-      apiKey: String(form.get("apiKey") || "").trim(),
-      model: String(form.get("model") || "").trim()
-    };
+    const nextConfigs = llmConfigs.map((config) => ({
+      id: config.id || `llm-${crypto.randomUUID()}`,
+      name: String(form.get(`llm-name-${config.id}`) || "").trim() || "未命名模型",
+      baseUrl: String(form.get(`llm-baseUrl-${config.id}`) || "").trim(),
+      apiKey: String(form.get(`llm-apiKey-${config.id}`) || "").trim(),
+      model: String(form.get(`llm-model-${config.id}`) || "").trim()
+    }));
+    const activeId = String(form.get("activeLlmId") || nextConfigs[0]?.id || "");
+    const nextConfig = nextConfigs.find((config) => config.id === activeId) || nextConfigs[0] || { id: "default", name: "默认模型", baseUrl: "", apiKey: "", model: "" };
     const nextPrompts = prompts.map((prompt) => ({
       id: prompt.id,
       name: String(form.get(`prompt-name-${prompt.id}`) || "").trim() || "未命名",
       content: String(form.get(`prompt-content-${prompt.id}`) || "").trim()
     }));
     setLlmConfig(nextConfig);
+    setLlmConfigs(nextConfigs);
     setPrompts(nextPrompts);
-    saveLLMConfig(nextConfig);
+    saveLLMConfigs({ activeId: nextConfig.id, items: nextConfigs });
     savePrompts(nextPrompts);
     try {
-      await saveSettingFor(context, LLM_CONFIG_SETTING_KEY, nextConfig);
+      await saveSettingFor(context, LLM_CONFIG_SETTING_KEY, { activeId: nextConfig.id, items: nextConfigs });
       await saveSettingFor(context, PROMPTS_SETTING_KEY, nextPrompts);
       setSettingsModal(false);
       setStatus(supabaseReady ? "设置已保存到 Supabase" : "设置已保存到本地");
     } catch (error: any) {
       setStatus(`设置保存失败：${error.message}`);
     }
+  }
+
+  function addLLMConfigRow() {
+    setLlmConfigs((current) => [...current, { id: `llm-${crypto.randomUUID()}`, name: "新模型", baseUrl: "", apiKey: "", model: "" }]);
+  }
+
+  function deleteLLMConfigRow(id?: string) {
+    if (!id) return;
+    setLlmConfigs((current) => {
+      const next = current.filter((config) => config.id !== id);
+      return next.length ? next : [{ id: `llm-${crypto.randomUUID()}`, name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
+    });
   }
 
   function addPromptRow() {
@@ -1093,10 +1119,13 @@ export function App() {
       {settingsModal ? (
         <SettingsModal
           config={llmConfig}
+          configs={llmConfigs}
           prompts={prompts}
           status={status}
           onClose={() => setSettingsModal(false)}
           onSubmit={saveSettings}
+          onAddConfig={addLLMConfigRow}
+          onDeleteConfig={deleteLLMConfigRow}
           onAddPrompt={addPromptRow}
           onDeletePrompt={deletePromptRow}
         />
