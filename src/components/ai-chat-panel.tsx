@@ -45,12 +45,36 @@ const QUICK_ACTIONS = [
 ];
 
 const MessageResponse = lazy(() => import("@/components/ai-elements/message-response").then((module) => ({ default: module.MessageResponse })));
+const MessageResponseMath = lazy(() => import("@/components/ai-elements/message-response-math").then((module) => ({ default: module.MessageResponseMath })));
+const MessageResponseMermaid = lazy(() => import("@/components/ai-elements/message-response-mermaid").then((module) => ({ default: module.MessageResponseMermaid })));
 const MessageResponseRich = lazy(() => import("@/components/ai-elements/message-response-rich").then((module) => ({ default: module.MessageResponseRich })));
 
-const RICH_RESPONSE_PATTERN = /```|~~~|\$\$|\\\(|\\\[|(^|\n)\s*(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|journey|pie|mindmap|timeline)\b/;
+type ResponseRenderer = "plain" | "math" | "mermaid" | "rich";
 
-function needsRichResponse(content: string) {
-  return RICH_RESPONSE_PATTERN.test(content);
+const CODE_RESPONSE_PATTERN = /```|~~~/;
+const MATH_RESPONSE_PATTERN = /\$\$|\\\(|\\\[/;
+const MERMAID_FENCE_PATTERN = /```(?:mermaid|mmd)\s*[\s\S]*?```/gi;
+const MERMAID_RESPONSE_PATTERN = /```(?:mermaid|mmd)\b|(^|\n)\s*(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|journey|pie|mindmap|timeline)\b/;
+
+function getResponseRenderer(content: string): ResponseRenderer {
+  const hasCode = CODE_RESPONSE_PATTERN.test(content.replace(MERMAID_FENCE_PATTERN, ""));
+  const hasMath = MATH_RESPONSE_PATTERN.test(content);
+  const hasMermaid = MERMAID_RESPONSE_PATTERN.test(content);
+  const richFeatureCount = Number(hasMath) + Number(hasMermaid);
+
+  if (richFeatureCount > 1) return "rich";
+  if (hasMermaid) return "mermaid";
+  if (hasMath) return "math";
+  if (hasCode) return "plain";
+  return "plain";
+}
+
+function renderAssistantMessage(content: string, busy: boolean) {
+  const renderer = getResponseRenderer(content);
+  if (renderer === "rich") return <MessageResponseRich isAnimating={busy}>{content}</MessageResponseRich>;
+  if (renderer === "mermaid") return <MessageResponseMermaid isAnimating={busy}>{content}</MessageResponseMermaid>;
+  if (renderer === "math") return <MessageResponseMath isAnimating={busy}>{content}</MessageResponseMath>;
+  return <MessageResponse isAnimating={busy}>{content}</MessageResponse>;
 }
 
 export function AIChatPanel({
@@ -241,11 +265,7 @@ export function AIChatPanel({
               <MessageContent>
                 {message.role === "assistant" ? (
                   <Suspense fallback={<p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>}>
-                    {needsRichResponse(message.content) ? (
-                      <MessageResponseRich isAnimating={busy}>{message.content}</MessageResponseRich>
-                    ) : (
-                      <MessageResponse isAnimating={busy}>{message.content}</MessageResponse>
-                    )}
+                    {renderAssistantMessage(message.content, busy)}
                   </Suspense>
                 ) : (
                   <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>

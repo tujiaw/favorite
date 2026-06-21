@@ -4,6 +4,7 @@ import {
   Bold,
   Check,
   ChevronDown,
+  Clock,
   Code2,
   Copy,
   Download,

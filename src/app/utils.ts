@@ -45,6 +45,12 @@ export function waitForPaint() {
   });
 }
 
+export function errorMessage(error: unknown, fallback = "操作失败") {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error.trim();
+  return fallback;
+}
+
 const VAULT_SESSION_KEY = "favorite-vault-session";
 const VAULT_LEGACY_KEY = "favorite-vault";
 

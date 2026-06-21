@@ -13,6 +13,7 @@ import {
   clearVaultPasswordCache,
   compareItems,
   countTypes,
+  errorMessage,
   isRunningAsPwa,
   isSystemTag,
   loadVaultPassword,
@@ -55,8 +56,6 @@ import { createBaseItem, deleteFavoriteFor, listFavoritesFor, loadSettingFor, sa
 import { localUser, setSessionUser, state as legacyState } from "./state.js";
 import { classifyContent, domainFromUrl, makePreview, titleFromContent, withTimeout } from "./utils.js";
 
-const LIST_BATCH_SIZE = 80;
-
 export function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [items, setItems] = useState<FavoriteItem[]>([]);
@@ -68,7 +67,6 @@ export function App() {
   const [specialFilter, setSpecialFilter] = useState<"recent" | null>(null);
   const [showAllTags, setShowAllTags] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [listVisibleCount, setListVisibleCount] = useState(LIST_BATCH_SIZE);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [favoritesListWidth, setFavoritesListWidth] = useState(420);
   const [activeWorkspace, setActiveWorkspace] = useState<"favorites" | "chat">("favorites");
@@ -174,7 +172,6 @@ export function App() {
   }, [chatModelId, llmConfig, llmConfigs]);
 
   useEffect(() => {
-    setListVisibleCount(LIST_BATCH_SIZE);
     favoritesListScrollRef.current?.scrollTo({ top: 0 });
   }, [favoriteOnly, query, sortDesc, sortMode, specialFilter, tagFilter, typeFilter, viewMode]);
 
@@ -331,8 +328,8 @@ export function App() {
       bridgeState.llmConfig = nextConfig;
       bridgeState.llmConfigs = nextConfigSetting.items;
       bridgeState.prompts = nextPrompts;
-    } catch (error: any) {
-      setStatus(`配置加载失败：${error.message}`);
+    } catch (error: unknown) {
+      setStatus(`配置加载失败：${errorMessage(error)}`);
     }
   }
 
@@ -353,13 +350,19 @@ export function App() {
   }, [favoriteOnly, items, query, sortDesc, sortMode, specialFilter, tagFilter, typeFilter]);
 
   const selectedItem = filteredItems.find((item) => item.id === selectedId) || filteredItems[0] || null;
-  const gridVisibleItems = filteredItems.slice(0, listVisibleCount);
-  const hasMoreGridItems = viewMode === "grid" && gridVisibleItems.length < filteredItems.length;
+  const gridColumnCount = viewMode === "grid" && favoritesListWidth >= 360 ? 2 : 1;
+  const gridRowCount = Math.ceil(filteredItems.length / gridColumnCount);
   const listVirtualizer = useVirtualizer({
     count: viewMode === "list" ? filteredItems.length : 0,
     getScrollElement: () => favoritesListScrollRef.current,
     estimateSize: () => 78,
     overscan: 8
+  });
+  const gridVirtualizer = useVirtualizer({
+    count: viewMode === "grid" ? gridRowCount : 0,
+    getScrollElement: () => favoritesListScrollRef.current,
+    estimateSize: () => 92,
+    overscan: 6
   });
   const selectedAccountSecretError = selectedItem ? accountSecretErrors[selectedItem.id] || "" : "";
   const tags = useMemo(() => tagCounts(items), [items]);
@@ -470,8 +473,8 @@ export function App() {
       setModalTab("favorite");
       setStatus(`已保存为${TYPE_META[type].label}`);
       await refreshItems(context, item.id);
-    } catch (error: any) {
-      setStatus(`保存失败：${error.message}`);
+    } catch (error: unknown) {
+      setStatus(`保存失败：${errorMessage(error)}`);
     } finally {
       setQuickSaving(false);
     }
@@ -505,8 +508,8 @@ export function App() {
       const uploaded = await uploadImageFor(context, user.id, `${selectedItem.id}/${imageId}`, file);
       setStatus("图片已插入正文");
       return uploaded.publicUrl as string;
-    } catch (error: any) {
-      setStatus(`图片插入失败：${error.message}`);
+    } catch (error: unknown) {
+      setStatus(`图片插入失败：${errorMessage(error)}`);
       throw error;
     }
   }
@@ -579,8 +582,8 @@ export function App() {
       setModalTab("favorite");
       setStatus(`Bitwarden 导入完成：新增 ${importResult.imported} 条，跳过 ${importResult.skipped} 条`);
       await refreshItems(context, importResult.firstImportedId || selectedId);
-    } catch (error: any) {
-      setStatus(`Bitwarden 导入失败：${error.message || "文件格式不正确"}`);
+    } catch (error: unknown) {
+      setStatus(`Bitwarden 导入失败：${errorMessage(error, "文件格式不正确")}`);
     }
   }
 
@@ -835,7 +838,7 @@ export function App() {
         message.id === assistantMessage.id ? { ...message, content: assistantContent.trim() || assistantContent } : message
       )));
       setStatus("AI 回复完成");
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (abortController.signal.aborted) {
         if (abortController.signal.reason === "clear") {
           return;
@@ -847,15 +850,16 @@ export function App() {
         setStatus("AI 回复已停止");
         return;
       }
+      const message = errorMessage(error);
       const failedMessages = startedMessages.map((message) => (
         message.id === assistantMessage.id
-          ? { ...message, content: assistantContent || `请求失败: ${error.message}` }
+          ? { ...message, content: assistantContent || `请求失败: ${message}` }
           : message
       ));
       if (assistantFrame != null) window.cancelAnimationFrame(assistantFrame);
       setChatMessages(failedMessages);
       saveChatMessages(failedMessages);
-      setStatus(`AI 对话失败: ${error.message}`);
+      setStatus(`AI 对话失败: ${message}`);
     } finally {
       if (assistantFrame != null) window.cancelAnimationFrame(assistantFrame);
       if (chatAbortRef.current === abortController) chatAbortRef.current = null;
@@ -968,8 +972,8 @@ export function App() {
       await saveSettingFor(context, PROMPTS_SETTING_KEY, nextPrompts);
       setSettingsModal(false);
       setStatus(supabaseReady ? "设置已保存到 Supabase，API Key 仅保存在本地" : "设置已保存到本地");
-    } catch (error: any) {
-      setStatus(`设置保存失败：${error.message}`);
+    } catch (error: unknown) {
+      setStatus(`设置保存失败：${errorMessage(error)}`);
     }
   }
 
@@ -999,8 +1003,8 @@ export function App() {
       setAiSummaryVisible(true);
       setAiSummaryExpanded(false);
       setStatus("AI 总结已生成");
-    } catch (error: any) {
-      setStatus(`AI 总结失败：${error.message}`);
+    } catch (error: unknown) {
+      setStatus(`AI 总结失败：${errorMessage(error)}`);
     } finally {
       setAiLoading(false);
     }
@@ -1020,8 +1024,8 @@ export function App() {
     try {
       await updateSelected(await applySavedPrompt(selectedItem, prompt, llmConfig));
       setStatus(`已应用：${prompt.name}`);
-    } catch (error: any) {
-      setStatus(`AI 处理失败：${error.message}`);
+    } catch (error: unknown) {
+      setStatus(`AI 处理失败：${errorMessage(error)}`);
     } finally {
       setAiLoading(false);
     }
@@ -1053,8 +1057,8 @@ export function App() {
       await updateSelected({ content: result.content, preview: result.preview });
       setInlineAISelection(null);
       setStatus(result.hasSelection ? "AI 已替换选中文字" : "AI 已插入到光标处");
-    } catch (error: any) {
-      setStatus(`AI 写入失败：${error.message}`);
+    } catch (error: unknown) {
+      setStatus(`AI 写入失败：${errorMessage(error)}`);
     } finally {
       setInlineAILoading(false);
     }
@@ -1237,23 +1241,33 @@ export function App() {
                     })}
                   </div>
                 ) : (
-                  <div className="grid gap-1 p-1 sm:grid-cols-2">
-                    {gridVisibleItems.map((item) => (
-                      <ItemCard
-                        item={item}
-                        key={item.id}
-                        selected={selectedItem?.id === item.id}
-                        onSelect={() => void selectFavoriteItem(item)}
-                      />
-                    ))}
-                    {hasMoreGridItems ? (
-                      <div className="grid gap-2 p-2 text-center text-xs text-muted-foreground sm:col-span-2">
-                        <span>已显示 {gridVisibleItems.length} / {filteredItems.length}</span>
-                        <Button variant="outline" size="sm" className="mx-auto" onClick={() => setListVisibleCount((count) => count + LIST_BATCH_SIZE)}>
-                          加载更多
-                        </Button>
-                      </div>
-                    ) : null}
+                  <div className="relative p-1" style={{ height: `${gridVirtualizer.getTotalSize()}px` }}>
+                    {gridVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const rowStart = virtualRow.index * gridColumnCount;
+                      const rowItems = filteredItems.slice(rowStart, rowStart + gridColumnCount);
+                      if (!rowItems.length) return null;
+                      return (
+                        <div
+                          key={virtualRow.key}
+                          data-index={virtualRow.index}
+                          ref={gridVirtualizer.measureElement}
+                          className="absolute left-0 top-0 grid w-full gap-1 px-1 pb-1"
+                          style={{
+                            gridTemplateColumns: `repeat(${gridColumnCount}, minmax(0, 1fr))`,
+                            transform: `translateY(${virtualRow.start}px)`
+                          }}
+                        >
+                          {rowItems.map((item) => (
+                            <ItemCard
+                              item={item}
+                              key={item.id}
+                              selected={selectedItem?.id === item.id}
+                              onSelect={() => void selectFavoriteItem(item)}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )
               ) : (

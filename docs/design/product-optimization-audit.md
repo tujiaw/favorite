@@ -45,7 +45,8 @@
 - 账号详情增加保险箱未解锁/过期提示，解释为什么不能查看或复制密码。
 - 账号解密失败时不再静默失败，详情页展示恢复说明并提供“重新解锁保险箱”入口；显示密码失败时不会错误切换可见状态。
 - 收藏列表项使用 `React.memo`，减少大量收藏下父级状态变化带来的重复渲染。
-- 收藏列表视图升级为 `@tanstack/react-virtual` 虚拟行渲染，网格视图保留首批渲染 + 加载更多；搜索和筛选仍覆盖全量数据。
+- 收藏列表视图升级为 `@tanstack/react-virtual` 虚拟行渲染；搜索和筛选仍覆盖全量数据。
+- 网格视图也升级为虚拟行渲染，按当前列表宽度自动使用一列或两列，移除手动“加载更多”路径。
 - 筛选/搜索导致空结果时提供一键清除筛选路径，避免用户停留在空列表。
 
 ### 页面反馈
@@ -61,6 +62,7 @@
 - Bitwarden 导入的数据解析、去重、字段映射和加密准备逻辑拆到 `src/app/bitwarden.ts`，`App.tsx` 只保留状态提示、保存和刷新流程。
 - 账号详情、复制用户名/密码和保险箱重解锁提示拆到 `src/components/account-detail-panel.tsx`，让详情主面板只负责内容类型分发。
 - 左侧导航和收藏列表卡片拆到 `src/components/sidebar.tsx`、`src/components/item-card.tsx`，减少 `app-layout.tsx` 的展示组件堆叠。
+- App 层错误处理从 `catch (error: any)` 收紧为 `unknown` + `errorMessage`，避免后续异常对象格式变化导致状态提示二次报错。
 
 ### 构建包体
 
@@ -68,12 +70,12 @@
 - 生产构建中主入口包从约 1.33MB 降到约 1.13MB；AI/语法高亮相关大 chunk 仍需继续拆分。
 - AI 对话面板中的 Streamdown/代码高亮/数学公式/Mermaid 渲染改为二级懒加载，`ai-chat-panel` chunk 从约 585KB 降到约 67KB，重型回复渲染器拆到 `message-response` 按需加载。
 - AI 回复渲染继续拆分为轻量 Markdown/CJK 与富渲染两层；普通回复的 `message-response` chunk 从约 519KB 降到约 0.46KB，代码块/公式/Mermaid 才加载约 494KB 的 `message-response-rich`。
+- AI 回复富渲染继续按数学公式、Mermaid 图表拆成独立懒加载组件；聊天代码块改用 Streamdown 基础渲染，不再引入 Shiki 语言包。
 
 ## 待继续审计
 
 - 创建页：如果后续增加后端代理，再接入自动读取网页 `<title>` 和 Open Graph 元数据；纯前端直接抓取会受 CORS 限制。
-- 列表页：网格视图在万级数据下是否需要进一步升级为虚拟瀑布流。
-- 构建包体：富渲染仍包含代码高亮语言包、数学公式和 Mermaid，后续如有必要可继续按能力拆成三段。
+- 构建包体：继续观察 Mermaid、KaTeX 和主入口体积，必要时再做更细的按需能力开关。
 
 ## 当前验证
 

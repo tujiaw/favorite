@@ -1,19 +1,18 @@
 "use client";
 
 import { cjk } from "@streamdown/cjk";
-import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import type { ComponentProps } from "react";
 import { memo } from "react";
 import { Streamdown } from "streamdown";
 import { cn } from "@/lib/utils";
 
-export type MessageResponseRichProps = ComponentProps<typeof Streamdown>;
+export type MessageResponseMermaidProps = ComponentProps<typeof Streamdown>;
 
-const streamdownPlugins = { cjk, math, mermaid };
+const streamdownPlugins = { cjk, mermaid };
 
-export const MessageResponseRich = memo(
-  ({ className, ...props }: MessageResponseRichProps) => (
+export const MessageResponseMermaid = memo(
+  ({ className, ...props }: MessageResponseMermaidProps) => (
     <Streamdown
       className={cn(
         "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
@@ -28,4 +27,4 @@ export const MessageResponseRich = memo(
     nextProps.isAnimating === prevProps.isAnimating
 );
 
-MessageResponseRich.displayName = "MessageResponseRich";
+MessageResponseMermaid.displayName = "MessageResponseMermaid";
