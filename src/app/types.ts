@@ -23,6 +23,7 @@ export type SortMode = "updated_at" | "use_count" | "title";
 export type ModalTab = "favorite" | "account";
 export type LLMConfig = { id?: string; name?: string; baseUrl: string; apiKey: string; model: string };
 export type PromptConfig = { id: string; name: string; content: string };
+export type ChatMessage = { id: string; role: "user" | "assistant" | "system"; content: string; createdAt: string };
 export type InlineAISelection = {
   itemId: string;
   start: number;

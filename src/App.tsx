@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LLM_CONFIG_SETTING_KEY, PROMPTS_SETTING_KEY, TYPE_META } from "@/app/meta";
-import type { AppUser, FavoriteItem, FavoriteType, InlineAISelection, LLMConfig, ModalTab, PromptConfig, SortMode } from "@/app/types";
+import type { AppUser, ChatMessage, FavoriteItem, FavoriteType, InlineAISelection, LLMConfig, ModalTab, PromptConfig, SortMode } from "@/app/types";
 import {
   accountFingerprint,
   addTag,
@@ -28,13 +28,17 @@ import {
   validDateString,
   waitForPaint
 } from "@/app/utils";
-import { applyInlineAIEdit, applySavedPrompt, generateFavoriteSummary, isLLMReady, loadLLMConfig, loadLLMConfigs, loadPrompts, saveLLMConfigs, savePrompts } from "@/ai/index";
+import { applyInlineAIEdit, applySavedPrompt, generateFavoriteSummary, isLLMReady, loadLLMConfig, loadLLMConfigs, loadPrompts, saveLLMConfigs, savePrompts, streamChat } from "@/ai/index";
+import { availableChatModels as buildAvailableChatModels, CHAT_MESSAGES_KEY, CHAT_MODEL_KEY, chatModelId as getChatModelId, loadChatMessages, saveChatMessages, selectedItemContextMessage, tagsFromChatContent, titleFromChatContent } from "@/ai/chat";
+import { AIChatLauncher } from "@/components/ai-chat-launcher";
 import { DetailPanel, ItemCard, LoginScreen, Sidebar, Topbar } from "@/components/app-layout";
 import { ConfirmModal, CreateModal, InlineAIModal, SettingsModal, TagManagerModal, VaultModal } from "@/components/app-modals";
 import { decryptSecret, encryptSecret } from "./crypto.js";
 import { createBaseItem, deleteFavoriteFor, listFavoritesFor, loadSettingFor, saveFavoriteFor, saveSettingFor, uploadImageFor } from "./data.js";
 import { localUser, setSessionUser, state as legacyState } from "./state.js";
 import { classifyContent, domainFromUrl, makePreview, titleFromContent, withTimeout } from "./utils.js";
+
+const LIST_BATCH_SIZE = 80;
 
 export function App() {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -47,12 +51,17 @@ export function App() {
   const [specialFilter, setSpecialFilter] = useState<"recent" | null>(null);
   const [showAllTags, setShowAllTags] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [listVisibleCount, setListVisibleCount] = useState(LIST_BATCH_SIZE);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [favoritesListWidth, setFavoritesListWidth] = useState(420);
+  const [activeWorkspace, setActiveWorkspace] = useState<"favorites" | "chat">("favorites");
+  const [chatPopupOpen, setChatPopupOpen] = useState(false);
+  const [chatPopupMinimized, setChatPopupMinimized] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const [status, setStatusValue] = useState("");
   const [toastStatus, setToastStatus] = useState("");
   const [quickInput, setQuickInput] = useState("");
+  const [quickSaving, setQuickSaving] = useState(false);
   const [booted, setBooted] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [supabaseReady, setSupabaseReady] = useState(false);
@@ -79,11 +88,15 @@ export function App() {
   const [aiSummaryById, setAiSummaryById] = useState<Record<string, string>>({});
   const [inlineAISelection, setInlineAISelection] = useState<InlineAISelection | null>(null);
   const [inlineAILoading, setInlineAILoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatModelId, setChatModelId] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
   const [installPromptEvent, setInstallPromptEvent] = useState<any>(null);
   const [isInstalledPwa, setIsInstalledPwa] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bitwardenFileInputRef = useRef<HTMLInputElement>(null);
   const statusToastTimer = useRef<number | null>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
 
   const context = useMemo(() => ({ supabaseReady, supabase, user }), [supabaseReady, supabase, user]);
 
@@ -126,17 +139,56 @@ export function App() {
     bridgeState.prompts = prompts;
   }, [items, llmConfig, llmConfigs, prompts, selectedId, supabase, supabaseReady, user, vaultExpiresAt, vaultPassword]);
 
+  useEffect(() => {
+    if (!booted || !chatModelId) return;
+    localStorage.setItem(CHAT_MODEL_KEY, chatModelId);
+  }, [booted, chatModelId]);
+
+  useEffect(() => {
+    const models = buildAvailableChatModels(llmConfig, llmConfigs);
+    if (!models.length) return;
+    const activeIds = new Set(models.map(getChatModelId));
+    if (!chatModelId || !activeIds.has(chatModelId)) {
+      setChatModelId(getChatModelId(models[0]));
+    }
+  }, [chatModelId, llmConfig, llmConfigs]);
+
+  useEffect(() => {
+    setListVisibleCount(LIST_BATCH_SIZE);
+  }, [favoriteOnly, query, sortDesc, sortMode, specialFilter, tagFilter, typeFilter, viewMode]);
+
+  useEffect(() => {
+    function openChatWithShortcut(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== "j") return;
+      event.preventDefault();
+      openChatPopup();
+    }
+
+    window.addEventListener("keydown", openChatWithShortcut);
+    return () => window.removeEventListener("keydown", openChatWithShortcut);
+  }, []);
+
+  function openChatPopup() {
+    setActiveWorkspace("chat");
+    setChatPopupOpen(true);
+    setChatPopupMinimized(false);
+  }
+
   async function boot() {
     setIsInstalledPwa(isRunningAsPwa());
     const savedVault = loadVaultPassword();
     const savedConfigSetting = loadLLMConfigs();
     const savedConfig = savedConfigSetting.items.find((item) => item.id === savedConfigSetting.activeId) || loadLLMConfig();
     const savedPrompts = loadPrompts();
+    const savedChatModelId = localStorage.getItem(CHAT_MODEL_KEY) || savedConfig.id || savedConfig.model || "";
+    const savedChatMessages = loadChatMessages();
     setVaultPasswordState(savedVault.password);
     setVaultExpiresAt(savedVault.expiresAt);
     setLlmConfig(savedConfig);
     setLlmConfigs(savedConfigSetting.items);
     setPrompts(savedPrompts);
+    setChatModelId(savedChatModelId);
+    setChatMessages(savedChatMessages);
     const bridgeState = legacyState as any;
     bridgeState.llmConfig = savedConfig;
     bridgeState.llmConfigs = savedConfigSetting.items;
@@ -279,8 +331,33 @@ export function App() {
   }, [favoriteOnly, items, query, sortDesc, sortMode, specialFilter, tagFilter, typeFilter]);
 
   const selectedItem = filteredItems.find((item) => item.id === selectedId) || filteredItems[0] || null;
+  const visibleItems = filteredItems.slice(0, listVisibleCount);
+  const hasMoreItems = visibleItems.length < filteredItems.length;
   const tags = useMemo(() => tagCounts(items), [items]);
   const typeCounts = useMemo(() => countTypes(items), [items]);
+  const availableChatModels = useMemo(() => buildAvailableChatModels(llmConfig, llmConfigs), [llmConfig, llmConfigs]);
+  const activeChatModel = availableChatModels.find((model) => getChatModelId(model) === chatModelId) || availableChatModels[0] || llmConfig;
+  const quickInputPreview = useMemo(() => {
+    const content = quickInput.trim();
+    if (!content) return null;
+    const type = classifyContent(content) as FavoriteType;
+    return {
+      type,
+      typeLabel: TYPE_META[type].label,
+      title: titleFromContent(content, type),
+      domain: type === "link" ? domainFromUrl(content) || "" : "",
+      preview: makePreview(content)
+    };
+  }, [quickInput]);
+  const hasActiveFilters = Boolean(query.trim() || typeFilter !== "all" || favoriteOnly || tagFilter || specialFilter);
+
+  function clearListFilters() {
+    setQuery("");
+    setTypeFilter("all");
+    setFavoriteOnly(false);
+    setTagFilter(null);
+    setSpecialFilter(null);
+  }
 
   async function signIn(provider: string) {
     if (!supabaseReady) {
@@ -316,23 +393,30 @@ export function App() {
   async function saveQuickInput() {
     if (!user) return;
     const content = quickInput.trim();
-    if (!content) return;
-    const type = classifyContent(content) as FavoriteType;
-    const item = createBaseItem({
-      type,
-      title: titleFromContent(content, type),
-      content,
-      preview: makePreview(content),
-      source_url: type === "link" ? content : null,
-      domain: type === "link" ? domainFromUrl(content) : null
-    }) as FavoriteItem;
-    item.user_id = user.id;
-    await saveFavoriteFor(context, item);
-    setQuickInput("");
-    setCreateModal(false);
-    setModalTab("favorite");
-    setStatus(`已保存为${TYPE_META[type].label}`);
-    await refreshItems(context, item.id);
+    if (!content || quickSaving) return;
+    setQuickSaving(true);
+    try {
+      const type = classifyContent(content) as FavoriteType;
+      const item = createBaseItem({
+        type,
+        title: titleFromContent(content, type),
+        content,
+        preview: makePreview(content),
+        source_url: type === "link" ? content : null,
+        domain: type === "link" ? domainFromUrl(content) : null
+      }) as FavoriteItem;
+      item.user_id = user.id;
+      await saveFavoriteFor(context, item);
+      setQuickInput("");
+      setCreateModal(false);
+      setModalTab("favorite");
+      setStatus(`已保存为${TYPE_META[type].label}`);
+      await refreshItems(context, item.id);
+    } catch (error: any) {
+      setStatus(`保存失败：${error.message}`);
+    } finally {
+      setQuickSaving(false);
+    }
   }
 
   async function addImage(file: File) {
@@ -668,6 +752,135 @@ export function App() {
     setStatus("已复制到剪贴板");
   }
 
+  async function sendChat(prompt: string, options: { includeSelectedItem: boolean }) {
+    if (!isLLMReady(activeChatModel)) {
+      setStatus("请先在设置中配置大模型");
+      setSettingsModal(true);
+      return;
+    }
+
+    const userMessage: ChatMessage = {
+      id: `chat-${crypto.randomUUID()}`,
+      role: "user",
+      content: prompt,
+      createdAt: new Date().toISOString()
+    };
+    const assistantMessage: ChatMessage = {
+      id: `chat-${crypto.randomUUID()}`,
+      role: "assistant",
+      content: "",
+      createdAt: new Date().toISOString()
+    };
+    chatAbortRef.current?.abort("replace");
+    const abortController = new AbortController();
+    chatAbortRef.current = abortController;
+    const startedMessages = [...chatMessages, userMessage, assistantMessage];
+    setChatMessages(startedMessages);
+    saveChatMessages(startedMessages);
+    setChatLoading(true);
+    setStatus("AI 正在回复");
+    let assistantContent = "";
+    let assistantFrame: number | null = null;
+
+    function flushAssistantContent() {
+      if (assistantFrame != null) {
+        window.cancelAnimationFrame(assistantFrame);
+        assistantFrame = null;
+      }
+      const nextContent = assistantContent;
+      setChatMessages((current) => current.map((message) => (
+        message.id === assistantMessage.id ? { ...message, content: nextContent } : message
+      )));
+    }
+
+    function scheduleAssistantContent() {
+      if (assistantFrame != null) return;
+      assistantFrame = window.requestAnimationFrame(() => {
+        assistantFrame = null;
+        flushAssistantContent();
+      });
+    }
+
+    const contextMessage = options.includeSelectedItem ? selectedItemContextMessage(selectedItem) : [];
+
+    try {
+      const history = [...chatMessages, userMessage].map((message) => ({ role: message.role, content: message.content }));
+      await streamChat([...contextMessage, ...history], activeChatModel, (delta) => {
+        assistantContent += delta;
+        scheduleAssistantContent();
+      }, abortController.signal);
+      flushAssistantContent();
+      saveChatMessages(startedMessages.map((message) => (
+        message.id === assistantMessage.id ? { ...message, content: assistantContent.trim() || assistantContent } : message
+      )));
+      setStatus("AI 回复完成");
+    } catch (error: any) {
+      if (abortController.signal.aborted) {
+        if (abortController.signal.reason === "clear") {
+          return;
+        }
+        flushAssistantContent();
+        saveChatMessages(startedMessages.map((message) => (
+          message.id === assistantMessage.id ? { ...message, content: assistantContent } : message
+        )));
+        setStatus("AI 回复已停止");
+        return;
+      }
+      const failedMessages = startedMessages.map((message) => (
+        message.id === assistantMessage.id
+          ? { ...message, content: assistantContent || `请求失败: ${error.message}` }
+          : message
+      ));
+      if (assistantFrame != null) window.cancelAnimationFrame(assistantFrame);
+      setChatMessages(failedMessages);
+      saveChatMessages(failedMessages);
+      setStatus(`AI 对话失败: ${error.message}`);
+    } finally {
+      if (assistantFrame != null) window.cancelAnimationFrame(assistantFrame);
+      if (chatAbortRef.current === abortController) chatAbortRef.current = null;
+      setChatLoading(false);
+    }
+  }
+
+  function stopChat() {
+    chatAbortRef.current?.abort("stop");
+  }
+
+  function clearChat() {
+    chatAbortRef.current?.abort("clear");
+    setChatMessages([]);
+    localStorage.removeItem(CHAT_MESSAGES_KEY);
+  }
+
+  async function applyChatContent(content: string) {
+    if (!selectedItem || !content.trim()) return;
+    await updateSelected({ content: content.trim(), preview: makePreview(content) });
+    setStatus("AI 结果已替换当前收藏内容");
+  }
+
+  async function appendChatNote(content: string) {
+    if (!selectedItem || !content.trim()) return;
+    const nextNote = [selectedItem.note || "", content.trim()].filter(Boolean).join("\n\n");
+    await updateSelected({ note: nextNote });
+    setStatus("AI 结果已追加到备注");
+  }
+
+  async function useChatAsTitle(content: string) {
+    if (!selectedItem || !content.trim()) return;
+    const title = titleFromChatContent(content);
+    if (!title) return;
+    await updateSelected({ title });
+    setStatus("AI 结果已设为标题");
+  }
+
+  async function addTagsFromChat(content: string) {
+    if (!selectedItem || !content.trim()) return;
+    const candidates = tagsFromChatContent(content);
+    const nextTags = candidates.reduce((tags, tag) => addTag(tags, tag), selectedItem.tags);
+    await updateSelected({ tags: nextTags });
+    setStatus(`已添加 ${Math.max(0, nextTags.length - selectedItem.tags.length)} 个标签`);
+  }
+
   async function setVaultPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -947,24 +1160,30 @@ export function App() {
           tagFilter={tagFilter}
           specialFilter={specialFilter}
           showAllTags={showAllTags}
+          activeWorkspace={activeWorkspace}
           onToggle={() => setSidebarCollapsed((value) => !value)}
+          onChat={openChatPopup}
           onType={(type) => {
+            setActiveWorkspace("favorites");
             setTypeFilter(type);
             setFavoriteOnly(false);
             setTagFilter(null);
             setSpecialFilter(null);
           }}
           onRecent={() => {
+            setActiveWorkspace("favorites");
             setSpecialFilter("recent");
             setTypeFilter("all");
             setFavoriteOnly(false);
             setTagFilter(null);
           }}
           onFavorite={() => {
+            setActiveWorkspace("favorites");
             setFavoriteOnly((value) => !value);
             setSpecialFilter(null);
           }}
           onTag={(tag) => {
+            setActiveWorkspace("favorites");
             setTagFilter(tag);
             setSpecialFilter(null);
           }}
@@ -1001,12 +1220,13 @@ export function App() {
             </CardHeader>
             <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-1">
               <div className={viewMode === "grid" ? "grid gap-1 p-1 sm:grid-cols-2" : "grid gap-0.5 p-1"}>
-                {filteredItems.length ? filteredItems.map((item) => (
+                {filteredItems.length ? visibleItems.map((item) => (
                   <ItemCard
                     item={item}
                     key={item.id}
                     selected={selectedItem?.id === item.id}
                     onSelect={async () => {
+                      setActiveWorkspace("favorites");
                       setSelectedId(item.id);
                       void markItemUsed(item);
                       setPasswordVisible(false);
@@ -1022,7 +1242,22 @@ export function App() {
                       }
                     }}
                   />
-                )) : <Card className="p-6 text-center text-sm text-muted-foreground">{query.trim() ? "没有匹配的收藏，试试换个关键词" : "还没有收藏，点击“创建”开始"}</Card>}
+                )) : (
+                  <Card className="grid gap-3 p-6 text-center text-sm text-muted-foreground">
+                    <span>{hasActiveFilters ? "没有匹配的收藏，试试清除筛选或换个关键词" : "还没有收藏，点击“创建”开始"}</span>
+                    {hasActiveFilters ? (
+                      <Button variant="outline" size="sm" className="mx-auto" onClick={clearListFilters}>清除筛选</Button>
+                    ) : null}
+                  </Card>
+                )}
+                {hasMoreItems ? (
+                  <div className="grid gap-2 p-2 text-center text-xs text-muted-foreground">
+                    <span>已显示 {visibleItems.length} / {filteredItems.length}</span>
+                    <Button variant="outline" size="sm" className="mx-auto" onClick={() => setListVisibleCount((count) => count + LIST_BATCH_SIZE)}>
+                      加载更多
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </ScrollArea>
           </Card>
@@ -1037,55 +1272,84 @@ export function App() {
           <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors group-hover:bg-primary group-focus-visible:bg-primary" />
         </button>
         <DetailPanel
-          item={selectedItem}
-          contentEditing={contentEditing}
-          passwordVisible={passwordVisible}
-          revealedSecret={revealedSecret}
-          prompts={prompts}
-          aiLoading={aiLoading}
-          aiSummary={selectedItem ? aiSummaryById[selectedItem.id] : ""}
-          aiSummaryVisible={aiSummaryVisible}
-          aiSummaryExpanded={aiSummaryExpanded}
-          inlineAISelection={inlineAISelection}
-          onCreate={() => setCreateModal(true)}
-          onFavorite={() => selectedItem && updateSelected({ favorite: !selectedItem.favorite })}
-          onCopy={async () => {
-            if (!selectedItem) return;
-            await copyText(selectedItem.content);
-            await markItemUsed(selectedItem);
-          }}
-          onDelete={() => setDeleteConfirm(true)}
-          onDuplicate={duplicateSelected}
-          onExport={exportSelected}
-          onTitle={(title) => updateSelected({ title })}
-          onType={(type) => updateSelected({ type })}
-          onAddTag={addTagToSelected}
-          onRemoveTag={removeTagFromSelected}
-          onContentDraft={updateContentDraft}
-          onContentCommit={commitContentDraft}
-          onInsertImage={uploadEditorImage}
-          onToggleEdit={() => setContentEditing((value) => !value)}
-          onRefreshAiSummary={refreshAiSummary}
-          onRunAI={runAI}
-          onOpenInlineAI={setInlineAISelection}
-          onCloseAiSummary={() => setAiSummaryVisible(false)}
-          onCopyAiSummary={() => selectedItem && copyText(aiSummaryById[selectedItem.id] || "")}
-          onApplyAiSummary={() => selectedItem && aiSummaryById[selectedItem.id] && updateSelected({ content: aiSummaryById[selectedItem.id], preview: makePreview(aiSummaryById[selectedItem.id]) })}
-          onToggleAiSummary={() => setAiSummaryExpanded((value) => !value)}
-          onTogglePassword={togglePassword}
-          onCopyUsername={copyAccountUsername}
-          onCopyPassword={copyAccountPassword}
-          onOpen={async (url, copyBeforeOpen) => {
-            if (copyBeforeOpen) await copyText(copyBeforeOpen);
-            if (selectedItem) await markItemUsed(selectedItem);
-            window.open(url, "_blank", "noreferrer");
-          }}
-        />
+            item={selectedItem}
+            contentEditing={contentEditing}
+            passwordVisible={passwordVisible}
+            revealedSecret={revealedSecret}
+            prompts={prompts}
+            aiLoading={aiLoading}
+            aiSummary={selectedItem ? aiSummaryById[selectedItem.id] : ""}
+            aiSummaryVisible={aiSummaryVisible}
+            aiSummaryExpanded={aiSummaryExpanded}
+            inlineAISelection={inlineAISelection}
+            onCreate={() => setCreateModal(true)}
+            onFavorite={() => selectedItem && updateSelected({ favorite: !selectedItem.favorite })}
+            onCopy={async () => {
+              if (!selectedItem) return;
+              await copyText(selectedItem.content);
+              await markItemUsed(selectedItem);
+            }}
+            onDelete={() => setDeleteConfirm(true)}
+            onDuplicate={duplicateSelected}
+            onExport={exportSelected}
+            onTitle={(title) => updateSelected({ title })}
+            onType={(type) => updateSelected({ type })}
+            onAddTag={addTagToSelected}
+            onRemoveTag={removeTagFromSelected}
+            onContentDraft={updateContentDraft}
+            onContentCommit={commitContentDraft}
+            onInsertImage={uploadEditorImage}
+            onToggleEdit={() => setContentEditing((value) => !value)}
+            onRefreshAiSummary={refreshAiSummary}
+            onRunAI={runAI}
+            onOpenInlineAI={setInlineAISelection}
+            onCloseAiSummary={() => setAiSummaryVisible(false)}
+            onCopyAiSummary={() => selectedItem && copyText(aiSummaryById[selectedItem.id] || "")}
+            onApplyAiSummary={() => selectedItem && aiSummaryById[selectedItem.id] && updateSelected({ content: aiSummaryById[selectedItem.id], preview: makePreview(aiSummaryById[selectedItem.id]) })}
+            onToggleAiSummary={() => setAiSummaryExpanded((value) => !value)}
+            onTogglePassword={togglePassword}
+            onCopyUsername={copyAccountUsername}
+            onCopyPassword={copyAccountPassword}
+            onOpen={async (url, copyBeforeOpen) => {
+              if (copyBeforeOpen) await copyText(copyBeforeOpen);
+              if (selectedItem) await markItemUsed(selectedItem);
+              window.open(url, "_blank", "noreferrer");
+            }}
+          />
       </div>
+      <AIChatLauncher
+        open={chatPopupOpen}
+        minimized={chatPopupMinimized}
+        messages={chatMessages}
+        models={availableChatModels}
+        activeModelId={chatModelId}
+        selectedItem={selectedItem}
+        busy={chatLoading}
+        modelReady={isLLMReady(activeChatModel)}
+        onMinimized={setChatPopupMinimized}
+        onOpen={openChatPopup}
+        onModel={setChatModelId}
+        onSend={sendChat}
+        onStop={stopChat}
+        onClear={clearChat}
+        onCopy={copyText}
+        onApplyContent={applyChatContent}
+        onAppendNote={appendChatNote}
+        onUseAsTitle={useChatAsTitle}
+        onAddTags={addTagsFromChat}
+        onOpenSettings={() => setSettingsModal(true)}
+        onClose={() => {
+          setChatPopupOpen(false);
+          setActiveWorkspace("favorites");
+          setChatPopupMinimized(false);
+        }}
+      />
       {createModal ? (
         <CreateModal
           modalTab={modalTab}
           quickInput={quickInput}
+          quickSaving={quickSaving}
+          quickInputPreview={quickInputPreview}
           status={status}
           hasVaultPassword={Boolean(vaultPassword)}
           fileInputRef={fileInputRef}
@@ -1158,7 +1422,7 @@ export function App() {
           onDelete={deleteTagEverywhere}
         />
       ) : null}
-      {toastStatus ? <Card className="fixed bottom-3 right-4 z-50 px-3 py-2 text-xs text-muted-foreground shadow-md">{toastStatus}</Card> : null}
+      {toastStatus ? <Card className="fixed bottom-3 left-1/2 z-50 max-w-[min(520px,calc(100vw-2rem))] -translate-x-1/2 px-3 py-2 text-xs text-muted-foreground shadow-md">{toastStatus}</Card> : null}
     </main>
     </TooltipProvider>
   );

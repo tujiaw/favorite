@@ -1,7 +1,8 @@
-import React, { KeyboardEvent, useEffect, useRef, useState } from "react";
+import React, { KeyboardEvent, lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Archive,
   Bold,
+  Bot,
   Check,
   ChevronDown,
   Clock,
@@ -56,10 +57,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CodeEditor, type CodeEditorHandle, type MarkdownAction } from "@/components/code-editor";
-import { MarkdownPreview } from "@/components/markdown-preview";
 import { TYPE_META } from "@/app/meta";
 import type { AppUser, FavoriteItem, FavoriteType, InlineAISelection, PromptConfig } from "@/app/types";
 import { categoryLabel, formatDetailDate, formatListDate, isSystemTag, truncate } from "@/app/utils";
+
+const MarkdownPreview = lazy(() => import("@/components/markdown-preview").then((module) => ({ default: module.MarkdownPreview })));
 
 export function LoginScreen({ onSignIn }: { onSignIn: (provider: string) => void }) {
   return (
@@ -188,7 +190,9 @@ export function Sidebar(props: {
   tagFilter: string | null;
   specialFilter: "recent" | null;
   showAllTags: boolean;
+  activeWorkspace: "favorites" | "chat";
   onToggle: () => void;
+  onChat: () => void;
   onType: (type: FavoriteType | "all") => void;
   onRecent: () => void;
   onFavorite: () => void;
@@ -203,6 +207,7 @@ export function Sidebar(props: {
           <IconButtonWithTooltip label="展开侧栏" onClick={props.onToggle}><PanelLeft /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="搜索" onClick={props.onToggle}><Search /></IconButtonWithTooltip>
           <IconButtonWithTooltip label="类型" onClick={props.onToggle}><Sparkles /></IconButtonWithTooltip>
+          <IconButtonWithTooltip label="AI 对话" onClick={props.onChat}><Bot /></IconButtonWithTooltip>
         </Card>
       </aside>
     );
@@ -210,22 +215,24 @@ export function Sidebar(props: {
   const favoriteCount = props.items.filter((item) => item.favorite).length;
   const recentCount = props.items.filter((item) => item.last_used_at).length;
   const visibleTags = props.showAllTags ? props.tags : props.tags.slice(0, 8);
+  const isFavoritesActive = props.activeWorkspace === "favorites";
   return (
     <aside className="min-h-0 border-r bg-card">
       <ScrollArea className="min-h-0">
         <Card className="grid gap-4 rounded-none border-0 bg-transparent p-3 shadow-none">
         <div className="grid gap-2">
           <p className="px-2 text-xs font-medium text-muted-foreground">收藏管理</p>
-          <Button variant={props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="justify-between" onClick={() => props.onType("all")}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Sparkles />全部收藏</span><Badge variant="outline">{props.items.length}</Badge></Button>
-          <Button variant={props.specialFilter === "recent" ? "secondary" : "ghost"} className="justify-between" onClick={props.onRecent}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Clock />最近使用</span><Badge variant="outline">{recentCount}</Badge></Button>
-          <Button variant={props.favoriteOnly ? "secondary" : "ghost"} className="justify-between" onClick={props.onFavorite}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Star />星标收藏</span><Badge variant="outline">{favoriteCount}</Badge></Button>
+          <Button variant={props.activeWorkspace === "chat" ? "secondary" : "ghost"} className="justify-between" onClick={props.onChat}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Bot />AI 对话</span></Button>
+          <Button variant={isFavoritesActive && props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="justify-between" onClick={() => props.onType("all")}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Sparkles />全部收藏</span><Badge variant="outline">{props.items.length}</Badge></Button>
+          <Button variant={isFavoritesActive && props.specialFilter === "recent" ? "secondary" : "ghost"} className="justify-between" onClick={props.onRecent}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Clock />最近使用</span><Badge variant="outline">{recentCount}</Badge></Button>
+          <Button variant={isFavoritesActive && props.favoriteOnly ? "secondary" : "ghost"} className="justify-between" onClick={props.onFavorite}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Star />星标收藏</span><Badge variant="outline">{favoriteCount}</Badge></Button>
         </div>
         <div className="grid gap-2">
           <p className="px-2 text-xs font-medium text-muted-foreground">类型</p>
           {(["link", "text", "image", "code", "json", "account"] as FavoriteType[]).map((type) => {
             const Icon = type === "link" ? Tag : TYPE_META[type].icon;
             return (
-              <Button variant={props.typeFilter === type ? "secondary" : "ghost"} className="justify-between" key={type} onClick={() => props.onType(type)}>
+              <Button variant={isFavoritesActive && props.typeFilter === type ? "secondary" : "ghost"} className="justify-between" key={type} onClick={() => props.onType(type)}>
                 <span className="inline-flex min-w-0 items-center gap-2 truncate"><Icon />{categoryLabel(type)}</span><Badge variant="outline">{props.typeCounts[type] || 0}</Badge>
               </Button>
             );
@@ -236,20 +243,16 @@ export function Sidebar(props: {
             <p className="text-xs font-medium text-muted-foreground">标签</p>
             <div className="flex items-center gap-1">
               {props.tags.length ? (
-                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onManageTags}>
-                  管理
-                </Button>
+                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onManageTags}>管理</Button>
               ) : null}
               {props.tags.length > 8 ? (
-                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onToggleTags}>
-                  {props.showAllTags ? "收起" : "更多"}
-                </Button>
+                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onToggleTags}>{props.showAllTags ? "收起" : "更多"}</Button>
               ) : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
           {visibleTags.length ? visibleTags.map(([tag, count]) => (
-            <Button variant={props.tagFilter === tag ? "default" : "secondary"} size="sm" key={tag} onClick={() => props.onTag(tag)}>
+            <Button variant={isFavoritesActive && props.tagFilter === tag ? "default" : "secondary"} size="sm" key={tag} onClick={() => props.onTag(tag)}>
               <span className="max-w-[92px] truncate">{tag}</span><Badge variant="outline">{count}</Badge>
             </Button>
           )) : <Badge variant="outline">暂无标签</Badge>}
@@ -262,7 +265,7 @@ export function Sidebar(props: {
   );
 }
 
-export function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: boolean; onSelect: () => void }) {
+export const ItemCard = React.memo(function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: boolean; onSelect: () => void }) {
   const Icon = TYPE_META[item.type]?.icon || FileText;
   return (
     <Button variant="ghost" className="h-auto w-full min-w-0 whitespace-normal p-0 text-left" onClick={onSelect}>
@@ -289,7 +292,7 @@ export function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; sel
       </Card>
     </Button>
   );
-}
+});
 
 export function DetailPanel(props: {
   item: FavoriteItem | null;
@@ -406,6 +409,9 @@ export function DetailPanel(props: {
                     <Button variant="ghost" size="icon" title={props.passwordVisible ? "隐藏密码" : "显示密码"} onClick={props.onTogglePassword}>{props.passwordVisible ? <EyeOff /> : <Eye />}</Button>
                     <Button variant="outline" size="icon" title="复制密码" onClick={props.onCopyPassword}><Copy /></Button>
                   </div>
+                  {!props.revealedSecret?.password ? (
+                    <p className="text-xs text-muted-foreground">保险箱未解锁或主密码已过期，请先在右上角保险箱中解锁后再查看或复制密码。</p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -417,7 +423,7 @@ export function DetailPanel(props: {
   return (
     <aside className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] bg-background">
       <div className="grid gap-3 border-b bg-background p-4 pb-3">
-        <div className="grid min-w-0 grid-cols-[minmax(160px,1fr)_auto] items-center gap-3 rounded-lg border bg-card px-3 py-2">
+        <div className="grid min-w-0 grid-cols-1 items-center gap-2 rounded-lg border bg-card px-3 py-2 xl:grid-cols-[minmax(160px,1fr)_auto] xl:gap-3">
           <Input
             className="h-8 min-w-0 border-0 bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0"
             value={titleDraft}
@@ -433,7 +439,7 @@ export function DetailPanel(props: {
             }}
             aria-label="标题"
           />
-          <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 xl:justify-end">
             <Badge variant="outline" className="shrink-0">{TYPE_META[item.type].label}</Badge>
             {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => (
               <Badge variant="secondary" className="max-w-[92px] gap-1 truncate" key={tag}>
@@ -604,7 +610,9 @@ export function DetailPanel(props: {
           </Card>
         ) : (
           <Card className="p-5 ring-0">
-            <MarkdownPreview content={item.content} />
+            <Suspense fallback={<div className="text-sm text-muted-foreground">正在加载预览</div>}>
+              <MarkdownPreview content={item.content} />
+            </Suspense>
           </Card>
         )}
         </div>

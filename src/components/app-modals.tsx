@@ -99,6 +99,13 @@ export function InlineAIModal({ busy, hasSelection, x, y, onClose, onSubmit }: {
 export function CreateModal(props: {
   modalTab: ModalTab;
   quickInput: string;
+  quickSaving: boolean;
+  quickInputPreview: {
+    typeLabel: string;
+    title: string;
+    domain: string;
+    preview: string;
+  } | null;
   status: string;
   hasVaultPassword: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -131,16 +138,27 @@ export function CreateModal(props: {
               value={props.quickInput}
               onChange={(event) => props.onQuickInput(event.target.value)}
               onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === "Enter") props.onSaveQuick();
+                if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !props.quickSaving) props.onSaveQuick();
               }}
               onPaste={props.onPaste}
+              disabled={props.quickSaving}
             />
+            {props.quickInputPreview ? (
+              <div className="mt-3 rounded-md border bg-muted/30 p-3">
+                <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+                  <Badge variant="secondary" className="shrink-0">{props.quickInputPreview.typeLabel}</Badge>
+                  {props.quickInputPreview.domain ? <span className="min-w-0 truncate text-xs text-muted-foreground">{props.quickInputPreview.domain}</span> : null}
+                </div>
+                <div className="truncate text-sm font-medium">{props.quickInputPreview.title}</div>
+                <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{props.quickInputPreview.preview}</div>
+              </div>
+            ) : null}
             <div className="mt-3 flex items-center justify-between gap-2">
               <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{props.status}</p>
               <Input className="hidden" type="file" accept="image/*" ref={props.fileInputRef} onChange={(event) => props.onImage(event.target.files?.[0])} />
               <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" size="icon" title="添加图片" onClick={() => props.fileInputRef.current?.click()}><Image /></Button>
-                <Button onClick={props.onSaveQuick}><Plus /> 保存</Button>
+                <Button variant="outline" size="icon" title="添加图片" disabled={props.quickSaving} onClick={() => props.fileInputRef.current?.click()}><Image /></Button>
+                <Button disabled={props.quickSaving || !props.quickInput.trim()} onClick={props.onSaveQuick}><Plus /> {props.quickSaving ? "保存中" : "保存"}</Button>
               </div>
             </div>
           </TabsContent>
@@ -409,12 +427,12 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] !max-w-5xl overflow-hidden sm:!max-w-5xl">
+      <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden !max-w-5xl sm:!max-w-5xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
           <DialogDescription>配置大模型与提示词，登录后同步到 Supabase，本地模式保存在当前浏览器</DialogDescription>
         </DialogHeader>
-        <form onSubmit={onSubmit}>
+        <form className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]" onSubmit={onSubmit}>
           <input type="hidden" name="llmIds" value={draftConfigs.map((item) => item.id).join(",")} />
           <input type="hidden" name="activeLlmId" value={activeConfigId} />
           {draftConfigs.map((modelConfig) => (
@@ -432,8 +450,8 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
               <textarea name={`prompt-content-${prompt.id}`} value={prompt.content || ""} readOnly />
             </div>
           ))}
-          <Tabs defaultValue="llm" orientation="vertical" className="grid min-h-[520px] grid-cols-[160px_minmax(0,1fr)] gap-4 max-md:grid-cols-1">
-            <TabsList className="w-full items-stretch justify-start">
+          <Tabs defaultValue="llm" orientation="vertical" className="grid min-h-0 grid-cols-[160px_minmax(0,1fr)] gap-4 max-md:grid-cols-1">
+            <TabsList className="w-full items-stretch justify-start max-md:flex max-md:overflow-x-auto">
               <TabsTrigger value="llm">大模型</TabsTrigger>
               <TabsTrigger value="prompts">提示词</TabsTrigger>
             </TabsList>
@@ -446,7 +464,7 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
                   </div>
                   <Button variant="outline" size="sm" type="button" onClick={addDraftConfig}><Plus /> 新增</Button>
                 </div>
-                <ScrollArea className="h-[440px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
+                <ScrollArea className="h-[min(440px,calc(100vh-18rem))] min-h-[260px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
                   <div className="grid gap-2" role="list">
                     {draftConfigs.map((modelConfig, index) => (
                       <Card className="grid gap-2 p-2" size="sm" key={modelConfig.id || index} role="listitem">
@@ -491,9 +509,9 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
                   </div>
                   <Button variant="outline" size="sm" type="button" onClick={addDraftPrompt}><Plus /> 新增</Button>
                 </div>
-                <ScrollArea className="h-[440px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
+                <ScrollArea className="h-[min(440px,calc(100vh-18rem))] min-h-[260px] rounded-md border bg-card [&>[data-slot=scroll-area-viewport]]:p-2">
                   <div className="grid gap-2" role="list">
-                    {draftPrompts.map((prompt) => (
+                    {draftPrompts.length ? draftPrompts.map((prompt) => (
                       <Card className="grid gap-2 p-2" size="sm" key={prompt.id} role="listitem">
                         <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
                           <Input className="h-7" value={prompt.name} placeholder="提示词名称" onChange={(event) => updateDraftPrompt(prompt.id, { name: event.target.value })} />
@@ -501,14 +519,18 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
                         </div>
                         <Textarea className="min-h-20" value={prompt.content} placeholder="提示词内容，将拼接到正文之前" onChange={(event) => updateDraftPrompt(prompt.id, { content: event.target.value })} />
                       </Card>
-                    ))}
+                    )) : (
+                      <Card className="grid min-h-32 place-items-center p-6 text-center text-sm text-muted-foreground">
+                        还没有提示词，点击右上角新增。
+                      </Card>
+                    )}
                   </div>
                 </ScrollArea>
               </div>
             </TabsContent>
           </Tabs>
-          <DialogFooter className="mt-4">
-            <span className="mr-auto text-sm text-muted-foreground">{status}</span>
+          <DialogFooter className="mt-4 flex-wrap gap-2">
+            <span className="mr-auto min-w-0 flex-1 truncate text-sm text-muted-foreground">{status}</span>
             <Button type="button" variant="ghost" onClick={onClose}>取消</Button>
             <Button type="submit"><Check /> 保存</Button>
           </DialogFooter>
