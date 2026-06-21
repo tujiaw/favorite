@@ -2,29 +2,24 @@ import React, { KeyboardEvent, lazy, Suspense, useEffect, useRef, useState } fro
 import {
   Archive,
   Bold,
-  Bot,
   Check,
   ChevronDown,
-  Clock,
   Code2,
   Copy,
   Download,
   ExternalLink,
   Eye,
-  EyeOff,
   FileText,
   Grid3X3,
   Heading1,
   Heart,
   Image as ImageIcon,
   Italic,
-  KeyRound,
   Link as LinkIcon,
   List,
   ListOrdered,
   LogOut,
   MoreVertical,
-  PanelLeft,
   Plus,
   Quote,
   RefreshCw,
@@ -52,14 +47,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AccountDetailPanel } from "@/components/account-detail-panel";
 import { CodeEditor, type CodeEditorHandle, type MarkdownAction } from "@/components/code-editor";
 import { TYPE_META } from "@/app/meta";
 import type { AppUser, FavoriteItem, FavoriteType, InlineAISelection, PromptConfig } from "@/app/types";
-import { categoryLabel, formatDetailDate, formatListDate, isSystemTag, truncate } from "@/app/utils";
+import { formatDetailDate, isSystemTag, truncate } from "@/app/utils";
+
+export { ItemCard } from "@/components/item-card";
+export { Sidebar } from "@/components/sidebar";
 
 const MarkdownPreview = lazy(() => import("@/components/markdown-preview").then((module) => ({ default: module.MarkdownPreview })));
 
@@ -180,120 +178,6 @@ function IconButtonWithTooltip({
   );
 }
 
-export function Sidebar(props: {
-  collapsed: boolean;
-  items: FavoriteItem[];
-  tags: [string, number][];
-  typeCounts: Record<string, number>;
-  typeFilter: FavoriteType | "all";
-  favoriteOnly: boolean;
-  tagFilter: string | null;
-  specialFilter: "recent" | null;
-  showAllTags: boolean;
-  activeWorkspace: "favorites" | "chat";
-  onToggle: () => void;
-  onChat: () => void;
-  onType: (type: FavoriteType | "all") => void;
-  onRecent: () => void;
-  onFavorite: () => void;
-  onTag: (tag: string | null) => void;
-  onToggleTags: () => void;
-  onManageTags: () => void;
-}) {
-  if (props.collapsed) {
-    return (
-      <aside className="min-h-0 border-r bg-card p-3">
-        <Card className="flex h-full flex-col items-center gap-2 border-0 bg-transparent shadow-none">
-          <IconButtonWithTooltip label="展开侧栏" onClick={props.onToggle}><PanelLeft /></IconButtonWithTooltip>
-          <IconButtonWithTooltip label="搜索" onClick={props.onToggle}><Search /></IconButtonWithTooltip>
-          <IconButtonWithTooltip label="类型" onClick={props.onToggle}><Sparkles /></IconButtonWithTooltip>
-          <IconButtonWithTooltip label="AI 对话" onClick={props.onChat}><Bot /></IconButtonWithTooltip>
-        </Card>
-      </aside>
-    );
-  }
-  const favoriteCount = props.items.filter((item) => item.favorite).length;
-  const recentCount = props.items.filter((item) => item.last_used_at).length;
-  const visibleTags = props.showAllTags ? props.tags : props.tags.slice(0, 8);
-  const isFavoritesActive = props.activeWorkspace === "favorites";
-  return (
-    <aside className="min-h-0 border-r bg-card">
-      <ScrollArea className="min-h-0">
-        <Card className="grid gap-4 rounded-none border-0 bg-transparent p-3 shadow-none">
-        <div className="grid gap-2">
-          <p className="px-2 text-xs font-medium text-muted-foreground">收藏管理</p>
-          <Button variant={props.activeWorkspace === "chat" ? "secondary" : "ghost"} className="justify-between" onClick={props.onChat}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Bot />AI 对话</span></Button>
-          <Button variant={isFavoritesActive && props.typeFilter === "all" && !props.favoriteOnly && !props.specialFilter ? "secondary" : "ghost"} className="justify-between" onClick={() => props.onType("all")}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Sparkles />全部收藏</span><Badge variant="outline">{props.items.length}</Badge></Button>
-          <Button variant={isFavoritesActive && props.specialFilter === "recent" ? "secondary" : "ghost"} className="justify-between" onClick={props.onRecent}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Clock />最近使用</span><Badge variant="outline">{recentCount}</Badge></Button>
-          <Button variant={isFavoritesActive && props.favoriteOnly ? "secondary" : "ghost"} className="justify-between" onClick={props.onFavorite}><span className="inline-flex min-w-0 items-center gap-2 truncate"><Star />星标收藏</span><Badge variant="outline">{favoriteCount}</Badge></Button>
-        </div>
-        <div className="grid gap-2">
-          <p className="px-2 text-xs font-medium text-muted-foreground">类型</p>
-          {(["link", "text", "image", "code", "json", "account"] as FavoriteType[]).map((type) => {
-            const Icon = type === "link" ? Tag : TYPE_META[type].icon;
-            return (
-              <Button variant={isFavoritesActive && props.typeFilter === type ? "secondary" : "ghost"} className="justify-between" key={type} onClick={() => props.onType(type)}>
-                <span className="inline-flex min-w-0 items-center gap-2 truncate"><Icon />{categoryLabel(type)}</span><Badge variant="outline">{props.typeCounts[type] || 0}</Badge>
-              </Button>
-            );
-          })}
-        </div>
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between gap-2 px-2">
-            <p className="text-xs font-medium text-muted-foreground">标签</p>
-            <div className="flex items-center gap-1">
-              {props.tags.length ? (
-                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onManageTags}>管理</Button>
-              ) : null}
-              {props.tags.length > 8 ? (
-                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={props.onToggleTags}>{props.showAllTags ? "收起" : "更多"}</Button>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-          {visibleTags.length ? visibleTags.map(([tag, count]) => (
-            <Button variant={isFavoritesActive && props.tagFilter === tag ? "default" : "secondary"} size="sm" key={tag} onClick={() => props.onTag(tag)}>
-              <span className="max-w-[92px] truncate">{tag}</span><Badge variant="outline">{count}</Badge>
-            </Button>
-          )) : <Badge variant="outline">暂无标签</Badge>}
-          {props.tagFilter ? <Button variant="ghost" size="sm" onClick={() => props.onTag(null)}>清除</Button> : null}
-          </div>
-        </div>
-        </Card>
-      </ScrollArea>
-    </aside>
-  );
-}
-
-export const ItemCard = React.memo(function ItemCard({ item, selected, onSelect }: { item: FavoriteItem; selected: boolean; onSelect: () => void }) {
-  const Icon = TYPE_META[item.type]?.icon || FileText;
-  return (
-    <Button variant="ghost" className="h-auto w-full min-w-0 whitespace-normal p-0 text-left" onClick={onSelect}>
-      <Card className={selected ? "w-full min-w-0 overflow-hidden border-primary ring-1 ring-primary" : "w-full min-w-0 overflow-hidden"}>
-      <CardContent className="grid min-w-0 gap-1 px-1 py-1">
-      <div className="flex w-full min-w-0 items-start justify-between gap-1">
-        <div className="flex min-w-0 flex-1 gap-1">
-          <Badge variant="secondary" className="grid size-5 shrink-0 place-items-center p-0"><Icon className="size-3" /></Badge>
-          <div className="min-w-0 flex-1">
-            <h2 className="flex min-w-0 items-center gap-1 text-sm font-medium">
-              <span className="min-w-0 truncate">{item.title}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">{TYPE_META[item.type].label}</span>
-            </h2>
-            <p className="mt-0.5 line-clamp-1 break-all text-xs leading-4 text-muted-foreground">{item.preview || item.content}</p>
-          </div>
-        </div>
-        {item.favorite ? <Star className="size-3 shrink-0 text-primary" fill="currentColor" /> : null}
-      </div>
-      <div className="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-muted-foreground">
-        {item.tags.filter((tag) => !isSystemTag(tag)).slice(0, 2).map((tag) => <Badge variant="outline" className="max-w-[96px] shrink-0 truncate px-1.5 py-0" key={tag}>{tag}</Badge>)}
-        <span className="shrink-0">{formatListDate(item.last_used_at || item.created_at)}</span>
-      </div>
-      </CardContent>
-      </Card>
-    </Button>
-  );
-});
-
 export function DetailPanel(props: {
   item: FavoriteItem | null;
   contentEditing: boolean;
@@ -380,54 +264,19 @@ export function DetailPanel(props: {
   const item = props.item;
   if (item.type === "account") {
     return (
-      <aside className="min-h-0 bg-background">
-        <ScrollArea className="h-full">
-          <Card className="m-4 p-4">
-            <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <KeyRound /> {item.title}
-              <Button variant="ghost" size="icon" className="ml-auto" onClick={props.onFavorite}><Heart fill={item.favorite ? "currentColor" : "none"} /></Button>
-              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" title="删除" onClick={props.onDelete}><Trash2 /></Button>
-            </div>
-            <div className="grid gap-3">
-              <div className="grid gap-2">
-                <Label>网址</Label>
-                <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
-                  <Input value={item.source_url || ""} readOnly />
-                  <Button variant="outline" size="icon" disabled={!item.source_url} title="打开链接并复制用户名" onClick={() => item.source_url && props.onOpen(item.source_url, item.content)}><ExternalLink /></Button>
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label>用户名</Label>
-                <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
-                  <Input value={item.content} readOnly />
-                  <Button variant="outline" size="icon" disabled={!item.content} title="复制用户名" onClick={props.onCopyUsername}><Copy /></Button>
-                </div>
-              </div>
-              {item.encrypted_secret ? (
-                <div className="grid gap-2">
-                  <Label>密码</Label>
-                  <div className="grid grid-cols-[minmax(0,1fr)_36px_36px] gap-2">
-                    <Input type={props.passwordVisible ? "text" : "password"} value={props.revealedSecret?.password || "••••••••"} readOnly />
-                    <Button variant="ghost" size="icon" title={props.passwordVisible ? "隐藏密码" : "显示密码"} onClick={props.onTogglePassword}>{props.passwordVisible ? <EyeOff /> : <Eye />}</Button>
-                    <Button variant="outline" size="icon" title="复制密码" onClick={props.onCopyPassword}><Copy /></Button>
-                  </div>
-                  {!props.revealedSecret?.password ? (
-                    <p className="text-xs text-muted-foreground">保险箱未解锁或主密码已过期，请先在右上角保险箱中解锁后再查看或复制密码。</p>
-                  ) : null}
-                  {props.accountSecretError ? (
-                    <Card className="grid gap-2 border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 shadow-none dark:text-amber-200">
-                      <p>{props.accountSecretError}</p>
-                      <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={props.onOpenVault}>
-                        <ShieldCheck className="size-3.5" /> 重新解锁保险箱
-                      </Button>
-                    </Card>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </Card>
-        </ScrollArea>
-      </aside>
+      <AccountDetailPanel
+        item={item}
+        passwordVisible={props.passwordVisible}
+        revealedSecret={props.revealedSecret}
+        accountSecretError={props.accountSecretError}
+        onFavorite={props.onFavorite}
+        onDelete={props.onDelete}
+        onOpen={props.onOpen}
+        onCopyUsername={props.onCopyUsername}
+        onTogglePassword={props.onTogglePassword}
+        onCopyPassword={props.onCopyPassword}
+        onOpenVault={props.onOpenVault}
+      />
     );
   }
   return (

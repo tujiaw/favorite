@@ -59,6 +59,8 @@
 - AI 聊天历史、模型去重、上下文构造、标题/标签解析拆到 `src/ai/chat.ts`。
 - 大模型设置的表单解析、模型行增删、本地 API Key 合并和云端脱敏逻辑拆到 `src/ai/settings.ts`，减少 `App.tsx` 对 AI 设置细节的直接承担。
 - Bitwarden 导入的数据解析、去重、字段映射和加密准备逻辑拆到 `src/app/bitwarden.ts`，`App.tsx` 只保留状态提示、保存和刷新流程。
+- 账号详情、复制用户名/密码和保险箱重解锁提示拆到 `src/components/account-detail-panel.tsx`，让详情主面板只负责内容类型分发。
+- 左侧导航和收藏列表卡片拆到 `src/components/sidebar.tsx`、`src/components/item-card.tsx`，减少 `app-layout.tsx` 的展示组件堆叠。
 
 ### 构建包体
 
