@@ -45,20 +45,34 @@ export function waitForPaint() {
   });
 }
 
+const VAULT_SESSION_KEY = "favorite-vault-session";
+const VAULT_LEGACY_KEY = "favorite-vault";
+
 export function loadVaultPassword() {
   try {
-    const saved = localStorage.getItem("favorite-vault");
+    localStorage.removeItem(VAULT_LEGACY_KEY);
+    const saved = sessionStorage.getItem(VAULT_SESSION_KEY);
     if (!saved) return { password: "", expiresAt: null };
     const vaultData = JSON.parse(saved);
     if (vaultData.expiresAt && Date.now() > vaultData.expiresAt) {
-      localStorage.removeItem("favorite-vault");
+      sessionStorage.removeItem(VAULT_SESSION_KEY);
       return { password: "", expiresAt: null };
     }
     return { password: atob(vaultData.password), expiresAt: vaultData.expiresAt };
   } catch {
-    localStorage.removeItem("favorite-vault");
+    sessionStorage.removeItem(VAULT_SESSION_KEY);
     return { password: "", expiresAt: null };
   }
+}
+
+export function saveVaultPassword(password: string, expiresAt: number | null) {
+  localStorage.removeItem(VAULT_LEGACY_KEY);
+  sessionStorage.setItem(VAULT_SESSION_KEY, JSON.stringify({ password: btoa(password), expiresAt }));
+}
+
+export function clearVaultPasswordCache() {
+  sessionStorage.removeItem(VAULT_SESSION_KEY);
+  localStorage.removeItem(VAULT_LEGACY_KEY);
 }
 
 export function compareItems(a: FavoriteItem, b: FavoriteItem, sortMode: SortMode, desc: boolean) {

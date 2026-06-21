@@ -76,6 +76,83 @@ export function saveLLMConfig(config: LLMConfig) {
   saveLLMConfigs({ activeId: item.id, items: [item] });
 }
 
+export function mergeLocalLLMApiKeys(setting: LLMConfigListSetting): LLMConfigListSetting {
+  const localKeys = new Map(loadLLMConfigs().items.map((config) => [config.id, config.apiKey]));
+  return {
+    activeId: setting.activeId,
+    items: setting.items.map((config) => ({
+      ...config,
+      apiKey: config.apiKey || localKeys.get(config.id) || ""
+    }))
+  };
+}
+
+export function withoutLLMApiKeys(setting: LLMConfigListSetting): LLMConfigListSetting {
+  return {
+    activeId: setting.activeId,
+    items: setting.items.map((config) => ({ ...config, apiKey: "" }))
+  };
+}
+
+export function baseLLMConfigs(configs: LLMConfig[], activeConfig: LLMConfig) {
+  return configs.length ? configs : [{ ...activeConfig, id: activeConfig.id || "default", name: activeConfig.name || "默认模型" }];
+}
+
+export function addLLMConfigRow(configs: LLMConfig[], activeConfig: LLMConfig) {
+  return [
+    ...baseLLMConfigs(configs, activeConfig),
+    { id: `llm-${crypto.randomUUID()}`, name: "新模型", baseUrl: "", apiKey: "", model: "" }
+  ];
+}
+
+export function deleteLLMConfigRow(configs: LLMConfig[], activeConfig: LLMConfig, id?: string) {
+  if (!id) return configs;
+  const next = baseLLMConfigs(configs, activeConfig).filter((config) => config.id !== id);
+  return next.length ? next : [{ id: `llm-${crypto.randomUUID()}`, name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
+}
+
+export function readLLMConfigsFromForm(form: FormData, configs: LLMConfig[], activeConfig: LLMConfig): LLMConfigListSetting {
+  const llmIds = String(form.get("llmIds") || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const sourceConfigIds = llmIds.length
+    ? llmIds
+    : baseLLMConfigs(configs, activeConfig).map((config) => config.id || `llm-${crypto.randomUUID()}`);
+  const items = sourceConfigIds.map((id) => {
+    const fallback = configs.find((config) => config.id === id) || (activeConfig.id === id ? activeConfig : null);
+    return {
+      id,
+      name: String(form.get(`llm-name-${id}`) || fallback?.name || "").trim() || "未命名模型",
+      baseUrl: String(form.get(`llm-baseUrl-${id}`) || fallback?.baseUrl || "").trim(),
+      apiKey: String(form.get(`llm-apiKey-${id}`) || fallback?.apiKey || "").trim(),
+      model: String(form.get(`llm-model-${id}`) || fallback?.model || "").trim()
+    };
+  });
+  return { activeId: String(form.get("activeLlmId") || items[0]?.id || ""), items };
+}
+
+export function readPromptsFromForm(form: FormData, prompts: PromptConfig[]) {
+  const promptIds = String(form.get("promptIds") || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const sourcePromptIds = promptIds.length ? promptIds : prompts.map((prompt) => prompt.id);
+  return sourcePromptIds.map((id) => ({
+    id,
+    name: String(form.get(`prompt-name-${id}`) || "").trim() || "未命名",
+    content: String(form.get(`prompt-content-${id}`) || "").trim()
+  }));
+}
+
+export function addPromptRow(prompts: PromptConfig[]) {
+  return [...prompts, { id: `prompt-${Date.now()}`, name: "新提示词", content: "" }];
+}
+
+export function deletePromptRow(prompts: PromptConfig[], id: string) {
+  return prompts.filter((prompt) => prompt.id !== id);
+}
+
 export function loadPrompts(): PromptConfig[] {
   try {
     const saved = localStorage.getItem(PROMPTS_KEY);

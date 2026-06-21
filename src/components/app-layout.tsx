@@ -305,6 +305,7 @@ export function DetailPanel(props: {
   inlineAISelection: InlineAISelection | null;
   passwordVisible: boolean;
   revealedSecret: { password?: string } | null;
+  accountSecretError?: string;
   onCreate: () => void;
   onFavorite: () => void;
   onCopy: () => void;
@@ -329,6 +330,7 @@ export function DetailPanel(props: {
   onTogglePassword: () => void;
   onCopyUsername: () => void;
   onCopyPassword: () => void;
+  onOpenVault: () => void;
   onOpen: (url: string, copyBeforeOpen?: string) => void;
 }) {
   const [titleDraft, setTitleDraft] = useState(props.item?.title || "");
@@ -411,6 +413,14 @@ export function DetailPanel(props: {
                   </div>
                   {!props.revealedSecret?.password ? (
                     <p className="text-xs text-muted-foreground">保险箱未解锁或主密码已过期，请先在右上角保险箱中解锁后再查看或复制密码。</p>
+                  ) : null}
+                  {props.accountSecretError ? (
+                    <Card className="grid gap-2 border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 shadow-none dark:text-amber-200">
+                      <p>{props.accountSecretError}</p>
+                      <Button type="button" variant="outline" size="sm" className="justify-self-start" onClick={props.onOpenVault}>
+                        <ShieldCheck className="size-3.5" /> 重新解锁保险箱
+                      </Button>
+                    </Card>
                   ) : null}
                 </div>
               ) : null}

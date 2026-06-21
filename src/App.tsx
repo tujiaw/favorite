@@ -1,4 +1,5 @@
 import { ChevronDown, Grid3X3, List } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,27 +9,43 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LLM_CONFIG_SETTING_KEY, PROMPTS_SETTING_KEY, TYPE_META } from "@/app/meta";
 import type { AppUser, ChatMessage, FavoriteItem, FavoriteType, InlineAISelection, LLMConfig, ModalTab, PromptConfig, SortMode } from "@/app/types";
 import {
-  accountFingerprint,
   addTag,
-  buildBitwardenImportNote,
+  clearVaultPasswordCache,
   compareItems,
   countTypes,
-  isBitwardenLoginItem,
   isRunningAsPwa,
   isSystemTag,
   loadVaultPassword,
   normalizeLLMConfig,
   normalizeLLMConfigs,
   normalizePrompts,
-  parseBitwardenExport,
   safeFilename,
+  saveVaultPassword,
   sortLabel,
-  stringValue,
   tagCounts,
-  validDateString,
   waitForPaint
 } from "@/app/utils";
-import { applyInlineAIEdit, applySavedPrompt, generateFavoriteSummary, isLLMReady, loadLLMConfig, loadLLMConfigs, loadPrompts, saveLLMConfigs, savePrompts, streamChat } from "@/ai/index";
+import { prepareBitwardenImport } from "@/app/bitwarden";
+import {
+  addLLMConfigRow as appendLLMConfigRow,
+  addPromptRow as appendPromptRow,
+  applyInlineAIEdit,
+  applySavedPrompt,
+  deleteLLMConfigRow as removeLLMConfigRow,
+  deletePromptRow as removePromptRow,
+  generateFavoriteSummary,
+  isLLMReady,
+  loadLLMConfig,
+  loadLLMConfigs,
+  loadPrompts,
+  mergeLocalLLMApiKeys,
+  readLLMConfigsFromForm,
+  readPromptsFromForm,
+  saveLLMConfigs,
+  savePrompts,
+  streamChat,
+  withoutLLMApiKeys
+} from "@/ai/index";
 import { availableChatModels as buildAvailableChatModels, CHAT_MESSAGES_KEY, CHAT_MODEL_KEY, chatModelId as getChatModelId, loadChatMessages, saveChatMessages, selectedItemContextMessage, tagsFromChatContent, titleFromChatContent } from "@/ai/chat";
 import { AIChatLauncher } from "@/components/ai-chat-launcher";
 import { DetailPanel, ItemCard, LoginScreen, Sidebar, Topbar } from "@/components/app-layout";
@@ -58,9 +75,11 @@ export function App() {
   const [chatPopupOpen, setChatPopupOpen] = useState(false);
   const [chatPopupMinimized, setChatPopupMinimized] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const favoritesListScrollRef = useRef<HTMLDivElement>(null);
   const [status, setStatusValue] = useState("");
   const [toastStatus, setToastStatus] = useState("");
   const [quickInput, setQuickInput] = useState("");
+  const [quickTitleDraft, setQuickTitleDraft] = useState("");
   const [quickSaving, setQuickSaving] = useState(false);
   const [booted, setBooted] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -72,6 +91,7 @@ export function App() {
   const [vaultPassword, setVaultPasswordState] = useState("");
   const [vaultExpiresAt, setVaultExpiresAt] = useState<number | null>(null);
   const [revealedSecret, setRevealedSecret] = useState<{ password?: string } | null>(null);
+  const [accountSecretErrors, setAccountSecretErrors] = useState<Record<string, string>>({});
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("updated_at");
@@ -155,6 +175,7 @@ export function App() {
 
   useEffect(() => {
     setListVisibleCount(LIST_BATCH_SIZE);
+    favoritesListScrollRef.current?.scrollTo({ top: 0 });
   }, [favoriteOnly, query, sortDesc, sortMode, specialFilter, tagFilter, typeFilter, viewMode]);
 
   useEffect(() => {
@@ -299,12 +320,13 @@ export function App() {
   ) {
     if (!nextContext.user) return;
     try {
-      const nextConfigSetting = normalizeLLMConfigs(await loadSettingFor(nextContext, LLM_CONFIG_SETTING_KEY, fallbackConfig));
+      const nextConfigSetting = mergeLocalLLMApiKeys(normalizeLLMConfigs(await loadSettingFor(nextContext, LLM_CONFIG_SETTING_KEY, fallbackConfig)));
       const nextConfig = nextConfigSetting.items.find((item) => item.id === nextConfigSetting.activeId) || nextConfigSetting.items[0] || normalizeLLMConfig(fallbackConfig);
       const nextPrompts = normalizePrompts(await loadSettingFor(nextContext, PROMPTS_SETTING_KEY, fallbackPrompts));
       setLlmConfig(nextConfig);
       setLlmConfigs(nextConfigSetting.items);
       setPrompts(nextPrompts);
+      saveLLMConfigs(nextConfigSetting);
       const bridgeState = legacyState as any;
       bridgeState.llmConfig = nextConfig;
       bridgeState.llmConfigs = nextConfigSetting.items;
@@ -331,8 +353,15 @@ export function App() {
   }, [favoriteOnly, items, query, sortDesc, sortMode, specialFilter, tagFilter, typeFilter]);
 
   const selectedItem = filteredItems.find((item) => item.id === selectedId) || filteredItems[0] || null;
-  const visibleItems = filteredItems.slice(0, listVisibleCount);
-  const hasMoreItems = visibleItems.length < filteredItems.length;
+  const gridVisibleItems = filteredItems.slice(0, listVisibleCount);
+  const hasMoreGridItems = viewMode === "grid" && gridVisibleItems.length < filteredItems.length;
+  const listVirtualizer = useVirtualizer({
+    count: viewMode === "list" ? filteredItems.length : 0,
+    getScrollElement: () => favoritesListScrollRef.current,
+    estimateSize: () => 78,
+    overscan: 8
+  });
+  const selectedAccountSecretError = selectedItem ? accountSecretErrors[selectedItem.id] || "" : "";
   const tags = useMemo(() => tagCounts(items), [items]);
   const typeCounts = useMemo(() => countTypes(items), [items]);
   const availableChatModels = useMemo(() => buildAvailableChatModels(llmConfig, llmConfigs), [llmConfig, llmConfigs]);
@@ -357,6 +386,34 @@ export function App() {
     setFavoriteOnly(false);
     setTagFilter(null);
     setSpecialFilter(null);
+  }
+
+  function setAccountSecretError(itemId: string, message: string) {
+    setAccountSecretErrors((current) => {
+      const next = { ...current };
+      if (message) next[itemId] = message;
+      else delete next[itemId];
+      return next;
+    });
+  }
+
+  async function selectFavoriteItem(item: FavoriteItem) {
+    setActiveWorkspace("favorites");
+    setSelectedId(item.id);
+    void markItemUsed(item);
+    setPasswordVisible(false);
+    setContentEditing(false);
+    if (item.type === "account" && item.encrypted_secret && vaultPassword) {
+      try {
+        setRevealedSecret(await decryptSecret(vaultPassword, item.encrypted_secret));
+        setAccountSecretError(item.id, "");
+      } catch {
+        setRevealedSecret(null);
+        setAccountSecretError(item.id, "解密失败，主密码可能不匹配，或这条账号数据已损坏。请重新解锁保险箱后再试；如果仍失败，建议删除后重新创建或重新导入该账号。");
+      }
+    } else {
+      setRevealedSecret(null);
+    }
   }
 
   async function signIn(provider: string) {
@@ -399,7 +456,7 @@ export function App() {
       const type = classifyContent(content) as FavoriteType;
       const item = createBaseItem({
         type,
-        title: titleFromContent(content, type),
+        title: quickTitleDraft.trim() || titleFromContent(content, type),
         content,
         preview: makePreview(content),
         source_url: type === "link" ? content : null,
@@ -408,6 +465,7 @@ export function App() {
       item.user_id = user.id;
       await saveFavoriteFor(context, item);
       setQuickInput("");
+      setQuickTitleDraft("");
       setCreateModal(false);
       setModalTab("favorite");
       setStatus(`已保存为${TYPE_META[type].label}`);
@@ -492,84 +550,35 @@ export function App() {
       setCreateModal(false);
       setStatus(`正在读取 Bitwarden 文件：${file.name}`);
       await waitForPaint();
-      const exportData = parseBitwardenExport(await file.text());
-      const total = exportData.items?.length || 0;
-      const loginItems = (exportData.items || []).filter(isBitwardenLoginItem);
-      const folderNames = new Map(
-        (exportData.folders || []).map((folder) => [stringValue(folder.id), stringValue(folder.name)] as const)
-      );
-      const existingKeys = new Set(
-        items.filter((item) => item.type === "account").map((item) => accountFingerprint(item))
-      );
-      let imported = 0;
-      let skipped = total - loginItems.length;
-      let processed = 0;
-      let firstImportedId: string | null = null;
+      const fileText = await file.text();
 
-      setStatus(`正在导入 Bitwarden：0/${loginItems.length}`);
+      setStatus("正在导入 Bitwarden，正在分析文件");
       await waitForPaint();
 
-      for (const bitwardenItem of loginItems) {
-        processed += 1;
-        const login = bitwardenItem.login;
-        const uris = Array.isArray(login.uris)
-          ? login.uris.map((uri) => stringValue(uri?.uri)).filter(Boolean)
-          : [];
-        const sourceUrl = uris[0] || "";
-        const username = stringValue(login.username);
-        const password = stringValue(login.password);
-        const title = stringValue(bitwardenItem.name) || domainFromUrl(sourceUrl) || username || "Bitwarden account";
-
-        if (!sourceUrl && !username && !password) {
-          skipped += 1;
-          continue;
+      const importResult = await prepareBitwardenImport({
+        existingItems: items,
+        fileText,
+        userId: user.id,
+        vaultPassword,
+        onProgress: async ({ imported, processed, totalLoginItems }) => {
+          setStatus(`正在导入 Bitwarden：${processed}/${totalLoginItems}，已新增 ${imported} 条`);
+          await waitForPaint();
         }
+      });
 
-        const duplicateKey = accountFingerprint({ title, content: username, source_url: sourceUrl });
-        if (existingKeys.has(duplicateKey)) {
-          skipped += 1;
-          continue;
-        }
-
-        const folderName = folderNames.get(stringValue(bitwardenItem.folderId)) || "";
-        const encrypted = await encryptSecret(vaultPassword, {
-          password,
-          totp: stringValue(login.totp),
-          notes: stringValue(bitwardenItem.notes),
-          fields: Array.isArray(bitwardenItem.fields) ? bitwardenItem.fields : [],
-          bitwardenId: stringValue(bitwardenItem.id)
-        });
-        const importedItem = createBaseItem({
-          type: "account",
-          title,
-          content: username,
-          source_url: sourceUrl || null,
-          domain: domainFromUrl(sourceUrl),
-          preview: "Imported from Bitwarden",
-          encrypted_secret: encrypted
-        }) as FavoriteItem;
-
-        importedItem.user_id = user.id;
-        importedItem.favorite = Boolean(bitwardenItem.favorite);
-        importedItem.tags = ["Bitwarden", folderName].filter(Boolean);
-        importedItem.note = buildBitwardenImportNote(uris, folderName);
-        importedItem.created_at = validDateString(bitwardenItem.creationDate) || importedItem.created_at;
-        importedItem.updated_at = validDateString(bitwardenItem.revisionDate) || importedItem.updated_at;
-
+      let saved = 0;
+      for (const importedItem of importResult.items) {
         await saveFavoriteFor(context, importedItem);
-        existingKeys.add(duplicateKey);
-        imported += 1;
-        firstImportedId ||= importedItem.id;
-
-        if (processed === 1 || processed % 5 === 0 || processed === loginItems.length) {
-          setStatus(`正在导入 Bitwarden：${processed}/${loginItems.length}，已新增 ${imported} 条`);
+        saved += 1;
+        if (saved === 1 || saved % 5 === 0 || saved === importResult.items.length) {
+          setStatus(`正在保存 Bitwarden：${saved}/${importResult.items.length}`);
           await waitForPaint();
         }
       }
 
       setModalTab("favorite");
-      setStatus(`Bitwarden 导入完成：新增 ${imported} 条，跳过 ${skipped} 条`);
-      await refreshItems(context, firstImportedId || selectedId);
+      setStatus(`Bitwarden 导入完成：新增 ${importResult.imported} 条，跳过 ${importResult.skipped} 条`);
+      await refreshItems(context, importResult.firstImportedId || selectedId);
     } catch (error: any) {
       setStatus(`Bitwarden 导入失败：${error.message || "文件格式不正确"}`);
     }
@@ -666,6 +675,7 @@ export function App() {
   async function copyAccountPassword() {
     if (!selectedItem?.encrypted_secret || !vaultPassword) {
       setStatus("请先设置保险箱主密码");
+      if (selectedItem?.id) setAccountSecretError(selectedItem.id, "保险箱未解锁或主密码已过期，请重新输入主密码后再查看或复制密码。");
       return;
     }
     try {
@@ -675,10 +685,12 @@ export function App() {
         return;
       }
       setRevealedSecret(secret);
+      setAccountSecretError(selectedItem.id, "");
       await copyText(secret.password);
       await markItemUsed(selectedItem);
     } catch {
       setStatus("解密失败，请检查保险箱主密码");
+      setAccountSecretError(selectedItem.id, "解密失败，主密码可能不匹配，或这条账号数据已损坏。请重新解锁保险箱后再试；如果仍失败，建议删除后重新创建或重新导入该账号。");
     }
   }
 
@@ -736,11 +748,20 @@ export function App() {
 
   async function togglePassword() {
     if (!selectedItem) return;
+    if (selectedItem.encrypted_secret && !vaultPassword) {
+      setAccountSecretError(selectedItem.id, "保险箱未解锁或主密码已过期，请重新输入主密码后再查看密码。");
+      setVaultModal(true);
+      setStatus("请先解锁保险箱");
+      return;
+    }
     if (!revealedSecret && selectedItem.encrypted_secret && vaultPassword) {
       try {
         setRevealedSecret(await decryptSecret(vaultPassword, selectedItem.encrypted_secret));
+        setAccountSecretError(selectedItem.id, "");
       } catch {
         setStatus("解密失败，请检查保险箱主密码");
+        setAccountSecretError(selectedItem.id, "解密失败，主密码可能不匹配，或这条账号数据已损坏。请重新解锁保险箱后再试；如果仍失败，建议删除后重新创建或重新导入该账号。");
+        return;
       }
     }
     setPasswordVisible((value) => !value);
@@ -890,17 +911,21 @@ export function App() {
     if (password.length < 8) return setStatus("主密码至少需要 8 位");
     if (password !== confirm) return setStatus("两次输入的密码不一致");
     const expiresAt = expireTime === -1 ? null : Date.now() + expireTime;
-    localStorage.setItem("favorite-vault", JSON.stringify({ password: btoa(password), expiresAt }));
+    saveVaultPassword(password, expiresAt);
     setVaultPasswordState(password);
     setVaultExpiresAt(expiresAt);
+    setAccountSecretErrors({});
     setVaultModal(false);
-    setStatus(`保险箱主密码已设置${expireTime === -1 ? "（永不过期）" : ""}`);
+    setStatus(`保险箱主密码已设置${expireTime === -1 ? "（本次会话不过期）" : ""}`);
   }
 
   function clearVaultPassword() {
-    localStorage.removeItem("favorite-vault");
+    clearVaultPasswordCache();
     setVaultPasswordState("");
     setVaultExpiresAt(null);
+    setRevealedSecret(null);
+    setAccountSecretErrors({});
+    setPasswordVisible(false);
     setStatus("保险箱主密码已清除");
   }
 
@@ -927,73 +952,41 @@ export function App() {
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const llmIds = String(form.get("llmIds") || "")
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean);
-    const sourceConfigIds = llmIds.length
-      ? llmIds
-      : (llmConfigs.length ? llmConfigs : [{ ...llmConfig, id: llmConfig.id || "default", name: llmConfig.name || "默认模型" }])
-        .map((config) => config.id || `llm-${crypto.randomUUID()}`);
-    const nextConfigs = sourceConfigIds.map((id) => {
-      const fallback = llmConfigs.find((config) => config.id === id) || (llmConfig.id === id ? llmConfig : null);
-      return {
-        id,
-        name: String(form.get(`llm-name-${id}`) || fallback?.name || "").trim() || "未命名模型",
-        baseUrl: String(form.get(`llm-baseUrl-${id}`) || fallback?.baseUrl || "").trim(),
-        apiKey: String(form.get(`llm-apiKey-${id}`) || fallback?.apiKey || "").trim(),
-        model: String(form.get(`llm-model-${id}`) || fallback?.model || "").trim()
-      };
-    });
-    const activeId = String(form.get("activeLlmId") || nextConfigs[0]?.id || "");
+    const nextConfigSetting = readLLMConfigsFromForm(form, llmConfigs, llmConfig);
+    const nextConfigs = nextConfigSetting.items;
+    const activeId = nextConfigSetting.activeId || nextConfigs[0]?.id || "";
     const nextConfig = nextConfigs.find((config) => config.id === activeId) || nextConfigs[0] || { id: "default", name: "默认模型", baseUrl: "", apiKey: "", model: "" };
-    const promptIds = String(form.get("promptIds") || "")
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean);
-    const sourcePromptIds = promptIds.length ? promptIds : prompts.map((prompt) => prompt.id);
-    const nextPrompts = sourcePromptIds.map((id) => ({
-      id,
-      name: String(form.get(`prompt-name-${id}`) || "").trim() || "未命名",
-      content: String(form.get(`prompt-content-${id}`) || "").trim()
-    }));
+    const nextPrompts = readPromptsFromForm(form, prompts);
     setLlmConfig(nextConfig);
     setLlmConfigs(nextConfigs);
     setPrompts(nextPrompts);
     saveLLMConfigs({ activeId: nextConfig.id, items: nextConfigs });
     savePrompts(nextPrompts);
     try {
-      await saveSettingFor(context, LLM_CONFIG_SETTING_KEY, { activeId: nextConfig.id, items: nextConfigs.length ? nextConfigs : [nextConfig] });
+      const syncConfigSetting = { activeId: nextConfig.id, items: nextConfigs.length ? nextConfigs : [nextConfig] };
+      await saveSettingFor(context, LLM_CONFIG_SETTING_KEY, supabaseReady ? withoutLLMApiKeys(syncConfigSetting) : syncConfigSetting);
       await saveSettingFor(context, PROMPTS_SETTING_KEY, nextPrompts);
       setSettingsModal(false);
-      setStatus(supabaseReady ? "设置已保存到 Supabase" : "设置已保存到本地");
+      setStatus(supabaseReady ? "设置已保存到 Supabase，API Key 仅保存在本地" : "设置已保存到本地");
     } catch (error: any) {
       setStatus(`设置保存失败：${error.message}`);
     }
   }
 
   function addLLMConfigRow() {
-    setLlmConfigs((current) => [
-      ...(current.length ? current : [{ ...llmConfig, id: llmConfig.id || "default", name: llmConfig.name || "默认模型" }]),
-      { id: `llm-${crypto.randomUUID()}`, name: "新模型", baseUrl: "", apiKey: "", model: "" }
-    ]);
+    setLlmConfigs((current) => appendLLMConfigRow(current, llmConfig));
   }
 
   function deleteLLMConfigRow(id?: string) {
-    if (!id) return;
-    setLlmConfigs((current) => {
-      const base = current.length ? current : [{ ...llmConfig, id: llmConfig.id || "default", name: llmConfig.name || "默认模型" }];
-      const next = base.filter((config) => config.id !== id);
-      return next.length ? next : [{ id: `llm-${crypto.randomUUID()}`, name: "默认模型", baseUrl: "", apiKey: "", model: "" }];
-    });
+    setLlmConfigs((current) => removeLLMConfigRow(current, llmConfig, id));
   }
 
   function addPromptRow() {
-    setPrompts((current) => [...current, { id: `prompt-${Date.now()}`, name: "新提示词", content: "" }]);
+    setPrompts((current) => appendPromptRow(current));
   }
 
   function deletePromptRow(id: string) {
-    setPrompts((current) => current.filter((prompt) => prompt.id !== id));
+    setPrompts((current) => removePromptRow(current, id));
   }
 
   async function refreshAiSummary() {
@@ -1131,6 +1124,7 @@ export function App() {
         isInstalledPwa={isInstalledPwa}
         onQuery={setQuery}
         onCreate={() => {
+          setQuickTitleDraft("");
           setCreateModal(true);
           setModalTab("favorite");
         }}
@@ -1218,47 +1212,60 @@ export function App() {
                 <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" className="size-6" title="网格视图" onClick={() => setViewMode("grid")}><Grid3X3 className="size-3.5" /></Button>
               </div>
             </CardHeader>
-            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-1">
-              <div className={viewMode === "grid" ? "grid gap-1 p-1 sm:grid-cols-2" : "grid gap-0.5 p-1"}>
-                {filteredItems.length ? visibleItems.map((item) => (
-                  <ItemCard
-                    item={item}
-                    key={item.id}
-                    selected={selectedItem?.id === item.id}
-                    onSelect={async () => {
-                      setActiveWorkspace("favorites");
-                      setSelectedId(item.id);
-                      void markItemUsed(item);
-                      setPasswordVisible(false);
-                      setContentEditing(false);
-                      if (item.type === "account" && item.encrypted_secret && vaultPassword) {
-                        try {
-                          setRevealedSecret(await decryptSecret(vaultPassword, item.encrypted_secret));
-                        } catch {
-                          setRevealedSecret(null);
-                        }
-                      } else {
-                        setRevealedSecret(null);
-                      }
-                    }}
-                  />
-                )) : (
+            <ScrollArea viewportRef={favoritesListScrollRef} className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-1">
+              {filteredItems.length ? (
+                viewMode === "list" ? (
+                  <div className="relative p-1" style={{ height: `${listVirtualizer.getTotalSize()}px` }}>
+                    {listVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const item = filteredItems[virtualRow.index];
+                      if (!item) return null;
+                      return (
+                        <div
+                          key={item.id}
+                          data-index={virtualRow.index}
+                          ref={listVirtualizer.measureElement}
+                          className="absolute left-0 top-0 w-full px-1 pb-0.5"
+                          style={{ transform: `translateY(${virtualRow.start}px)` }}
+                        >
+                          <ItemCard
+                            item={item}
+                            selected={selectedItem?.id === item.id}
+                            onSelect={() => void selectFavoriteItem(item)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid gap-1 p-1 sm:grid-cols-2">
+                    {gridVisibleItems.map((item) => (
+                      <ItemCard
+                        item={item}
+                        key={item.id}
+                        selected={selectedItem?.id === item.id}
+                        onSelect={() => void selectFavoriteItem(item)}
+                      />
+                    ))}
+                    {hasMoreGridItems ? (
+                      <div className="grid gap-2 p-2 text-center text-xs text-muted-foreground sm:col-span-2">
+                        <span>已显示 {gridVisibleItems.length} / {filteredItems.length}</span>
+                        <Button variant="outline" size="sm" className="mx-auto" onClick={() => setListVisibleCount((count) => count + LIST_BATCH_SIZE)}>
+                          加载更多
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              ) : (
+                <div className="p-1">
                   <Card className="grid gap-3 p-6 text-center text-sm text-muted-foreground">
                     <span>{hasActiveFilters ? "没有匹配的收藏，试试清除筛选或换个关键词" : "还没有收藏，点击“创建”开始"}</span>
                     {hasActiveFilters ? (
                       <Button variant="outline" size="sm" className="mx-auto" onClick={clearListFilters}>清除筛选</Button>
                     ) : null}
                   </Card>
-                )}
-                {hasMoreItems ? (
-                  <div className="grid gap-2 p-2 text-center text-xs text-muted-foreground">
-                    <span>已显示 {visibleItems.length} / {filteredItems.length}</span>
-                    <Button variant="outline" size="sm" className="mx-auto" onClick={() => setListVisibleCount((count) => count + LIST_BATCH_SIZE)}>
-                      加载更多
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
+                </div>
+              )}
             </ScrollArea>
           </Card>
         </section>
@@ -1276,13 +1283,17 @@ export function App() {
             contentEditing={contentEditing}
             passwordVisible={passwordVisible}
             revealedSecret={revealedSecret}
+            accountSecretError={selectedAccountSecretError}
             prompts={prompts}
             aiLoading={aiLoading}
             aiSummary={selectedItem ? aiSummaryById[selectedItem.id] : ""}
             aiSummaryVisible={aiSummaryVisible}
             aiSummaryExpanded={aiSummaryExpanded}
             inlineAISelection={inlineAISelection}
-            onCreate={() => setCreateModal(true)}
+            onCreate={() => {
+              setQuickTitleDraft("");
+              setCreateModal(true);
+            }}
             onFavorite={() => selectedItem && updateSelected({ favorite: !selectedItem.favorite })}
             onCopy={async () => {
               if (!selectedItem) return;
@@ -1310,6 +1321,7 @@ export function App() {
             onTogglePassword={togglePassword}
             onCopyUsername={copyAccountUsername}
             onCopyPassword={copyAccountPassword}
+            onOpenVault={() => setVaultModal(true)}
             onOpen={async (url, copyBeforeOpen) => {
               if (copyBeforeOpen) await copyText(copyBeforeOpen);
               if (selectedItem) await markItemUsed(selectedItem);
@@ -1348,6 +1360,7 @@ export function App() {
         <CreateModal
           modalTab={modalTab}
           quickInput={quickInput}
+          quickTitleDraft={quickTitleDraft}
           quickSaving={quickSaving}
           quickInputPreview={quickInputPreview}
           status={status}
@@ -1356,9 +1369,11 @@ export function App() {
           bitwardenFileInputRef={bitwardenFileInputRef}
           onTab={setModalTab}
           onQuickInput={setQuickInput}
+          onQuickTitle={setQuickTitleDraft}
           onClose={() => {
             setCreateModal(false);
             setModalTab("favorite");
+            setQuickTitleDraft("");
           }}
           onSaveQuick={saveQuickInput}
           onPaste={async (event) => {

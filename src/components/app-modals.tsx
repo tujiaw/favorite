@@ -99,6 +99,7 @@ export function InlineAIModal({ busy, hasSelection, x, y, onClose, onSubmit }: {
 export function CreateModal(props: {
   modalTab: ModalTab;
   quickInput: string;
+  quickTitleDraft: string;
   quickSaving: boolean;
   quickInputPreview: {
     typeLabel: string;
@@ -112,6 +113,7 @@ export function CreateModal(props: {
   bitwardenFileInputRef: React.RefObject<HTMLInputElement | null>;
   onTab: (tab: ModalTab) => void;
   onQuickInput: (value: string) => void;
+  onQuickTitle: (value: string) => void;
   onClose: () => void;
   onSaveQuick: () => void;
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
@@ -149,7 +151,16 @@ export function CreateModal(props: {
                   <Badge variant="secondary" className="shrink-0">{props.quickInputPreview.typeLabel}</Badge>
                   {props.quickInputPreview.domain ? <span className="min-w-0 truncate text-xs text-muted-foreground">{props.quickInputPreview.domain}</span> : null}
                 </div>
-                <div className="truncate text-sm font-medium">{props.quickInputPreview.title}</div>
+                <div className="grid gap-1">
+                  <Label className="text-xs text-muted-foreground">标题</Label>
+                  <Input
+                    className="h-8"
+                    value={props.quickTitleDraft}
+                    placeholder={props.quickInputPreview.title}
+                    disabled={props.quickSaving}
+                    onChange={(event) => props.onQuickTitle(event.target.value)}
+                  />
+                </div>
                 <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{props.quickInputPreview.preview}</div>
               </div>
             ) : null}
@@ -245,13 +256,13 @@ export function VaultModal({ expiresAt, onClose, onSubmit, onClear }: {
                 <SelectItem value="86400000">1天后过期</SelectItem>
                 <SelectItem value="604800000">7天后过期</SelectItem>
                 <SelectItem value="2592000000">30天后过期</SelectItem>
-                <SelectItem value="-1">永不过期</SelectItem>
+                <SelectItem value="-1">本次会话不过期</SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
         <DialogFooter className="mt-4">
-          <span className="mr-auto text-sm text-muted-foreground">主密码仅保存在浏览器本地</span>
+          <span className="mr-auto text-sm text-muted-foreground">主密码仅在当前浏览器会话中缓存</span>
           {expiresAt ? <Button variant="outline" type="button" onClick={onClose}>关闭</Button> : <Button type="submit"><Check /> 确认设置</Button>}
         </DialogFooter>
         </form>
@@ -430,7 +441,7 @@ export function SettingsModal({ config, configs, prompts, status, onClose, onSub
       <DialogContent className="grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden !max-w-5xl sm:!max-w-5xl">
         <DialogHeader>
           <DialogTitle>设置</DialogTitle>
-          <DialogDescription>配置大模型与提示词，登录后同步到 Supabase，本地模式保存在当前浏览器</DialogDescription>
+          <DialogDescription>配置大模型与提示词，登录后同步到 Supabase；API Key 仅保存在当前浏览器</DialogDescription>
         </DialogHeader>
         <form className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto]" onSubmit={onSubmit}>
           <input type="hidden" name="llmIds" value={draftConfigs.map((item) => item.id).join(",")} />

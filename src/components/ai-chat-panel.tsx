@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, Copy, FilePenLine, MessageSquare, Minus, Plus, Send, Settings, Sparkles, Square, Tags, X } from "lucide-react";
 import type { ChatMessage, FavoriteItem, LLMConfig } from "@/app/types";
 import { TYPE_META } from "@/app/meta";
@@ -8,7 +8,7 @@ import {
   ConversationEmptyState,
   ConversationScrollButton
 } from "@/components/ai-elements/conversation";
-import { Message, MessageAction, MessageActions, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { Message, MessageAction, MessageActions, MessageContent } from "@/components/ai-elements/message";
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -43,6 +43,15 @@ const QUICK_ACTIONS = [
     prompt: "请从当前收藏中提取可执行的待办事项，按优先级列出。"
   }
 ];
+
+const MessageResponse = lazy(() => import("@/components/ai-elements/message-response").then((module) => ({ default: module.MessageResponse })));
+const MessageResponseRich = lazy(() => import("@/components/ai-elements/message-response-rich").then((module) => ({ default: module.MessageResponseRich })));
+
+const RICH_RESPONSE_PATTERN = /```|~~~|\$\$|\\\(|\\\[|(^|\n)\s*(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|journey|pie|mindmap|timeline)\b/;
+
+function needsRichResponse(content: string) {
+  return RICH_RESPONSE_PATTERN.test(content);
+}
 
 export function AIChatPanel({
   messages,
@@ -231,7 +240,13 @@ export function AIChatPanel({
             <Message from={message.role} key={message.id}>
               <MessageContent>
                 {message.role === "assistant" ? (
-                  <MessageResponse isAnimating={busy}>{message.content}</MessageResponse>
+                  <Suspense fallback={<p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>}>
+                    {needsRichResponse(message.content) ? (
+                      <MessageResponseRich isAnimating={busy}>{message.content}</MessageResponseRich>
+                    ) : (
+                      <MessageResponse isAnimating={busy}>{message.content}</MessageResponse>
+                    )}
+                  </Suspense>
                 ) : (
                   <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>
                 )}
