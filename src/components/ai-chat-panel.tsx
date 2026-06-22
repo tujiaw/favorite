@@ -70,6 +70,18 @@ function getResponseRenderer(content: string): ResponseRenderer {
 }
 
 function renderAssistantMessage(content: string, busy: boolean) {
+  if (!content.trim() && busy) {
+    return (
+      <div className="flex items-center gap-2 py-1 text-sm text-muted-foreground">
+        <span className="relative flex size-2">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/40" />
+          <span className="relative inline-flex size-2 rounded-full bg-primary" />
+        </span>
+        <span>正在连接模型...</span>
+      </div>
+    );
+  }
+
   const renderer = getResponseRenderer(content);
   if (renderer === "rich") return <MessageResponseRich isAnimating={busy}>{content}</MessageResponseRich>;
   if (renderer === "mermaid") return <MessageResponseMermaid isAnimating={busy}>{content}</MessageResponseMermaid>;

@@ -38,8 +38,17 @@ export function availableChatModels(llmConfig: LLMConfig, llmConfigs: LLMConfig[
   });
 }
 
+function selectedItemContentForChat(selectedItem: FavoriteItem) {
+  if (selectedItem.type === "image" && /^data:image\//i.test(selectedItem.content)) {
+    return `[Image base64 content omitted, ${selectedItem.content.length} characters. Use the title, source, tags, and note as context for this image favorite.]`;
+  }
+
+  return selectedItem.content;
+}
+
 export function selectedItemContextMessage(selectedItem: FavoriteItem | null) {
   if (!selectedItem) return [];
+  selectedItem = { ...selectedItem, content: selectedItemContentForChat(selectedItem) };
   return [{
     role: "system" as const,
     content: [
