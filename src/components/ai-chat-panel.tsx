@@ -1,5 +1,5 @@
 import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, Copy, FilePenLine, MessageSquare, Minus, Plus, Send, Settings, Sparkles, Square, Tags, X } from "lucide-react";
+import { Bot, Check, Copy, FilePenLine, MessageSquare, Plus, Send, Settings, Sparkles, Square, Tags } from "lucide-react";
 import type { ChatMessage, FavoriteItem, LLMConfig } from "@/app/types";
 import { TYPE_META } from "@/app/meta";
 import {
@@ -94,9 +94,7 @@ export function AIChatPanel({
   onAppendNote,
   onUseAsTitle,
   onAddTags,
-  onOpenSettings,
-  onClose,
-  onMinimize
+  onOpenSettings
 }: {
   messages: ChatMessage[];
   models: LLMConfig[];
@@ -115,8 +113,6 @@ export function AIChatPanel({
   onUseAsTitle: (content: string) => void;
   onAddTags: (content: string) => void;
   onOpenSettings: () => void;
-  onClose?: () => void;
-  onMinimize?: () => void;
 }) {
   const [prompt, setPrompt] = useState("");
   const [includeSelectedItem, setIncludeSelectedItem] = useState(true);
@@ -147,21 +143,21 @@ export function AIChatPanel({
   }
 
   return (
-    <aside className={cn("grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-background", className)}>
+    <aside className={cn("grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-background", className)}>
       <div className="border-b bg-background px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
             <Bot className="size-3.5" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-[120px] flex-1">
             <h2 className="truncate text-sm font-semibold">AI 对话</h2>
             <p className="truncate text-xs text-muted-foreground">随时问，结果可写回当前收藏</p>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+          <div className="ml-auto flex min-w-0 shrink items-center gap-1">
             <ModelSelector open={modelSelectorOpen} onOpenChange={setModelSelectorOpen}>
               <ModelSelectorTrigger
                 render={
-                  <Button type="button" variant="outline" size="sm" className="max-w-[160px] justify-start" />
+                  <Button type="button" variant="outline" size="sm" className="min-w-0 max-w-[150px] justify-start" />
                 }
               >
                 <MessageSquare className="size-3" />
@@ -196,30 +192,23 @@ export function AIChatPanel({
             <Button variant="ghost" size="icon-sm" type="button" title="新对话" onClick={onClear} disabled={!visibleMessages.length || busy}>
               <Plus />
             </Button>
-            {onMinimize ? (
-              <Button variant="ghost" size="icon-sm" type="button" title="最小化" onClick={onMinimize}>
-                <Minus />
-              </Button>
-            ) : null}
-            {onClose ? (
-              <Button variant="ghost" size="icon-sm" type="button" title="关闭" onClick={onClose}>
-                <X />
-              </Button>
-            ) : null}
+            <Button variant="ghost" size="icon-sm" type="button" title="AI 设置" onClick={onOpenSettings}>
+              <Settings />
+            </Button>
           </div>
         </div>
 
-        <div className="mt-2 flex min-w-0 items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5">
+        <div className="mt-2 flex min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-md bg-muted/40 px-2 py-1.5">
           {selectedItem ? (
             <>
               <Badge variant="secondary" className="shrink-0">{TYPE_META[selectedItem.type].label}</Badge>
               <span className="shrink-0 text-xs text-muted-foreground">当前收藏</span>
-              <span className="min-w-0 truncate text-xs font-medium" title={selectedItem.title}>{selectedItem.title}</span>
+              <span className="min-w-0 flex-1 truncate text-xs font-medium" title={selectedItem.title}>{selectedItem.title}</span>
               <Button
                 type="button"
                 variant={includeSelectedItem ? "secondary" : "outline"}
                 size="xs"
-                className="ml-auto"
+                className="shrink-0"
                 onClick={() => setIncludeSelectedItem((value) => !value)}
               >
                 {includeSelectedItem ? "引用中" : "未引用"}
@@ -258,24 +247,26 @@ export function AIChatPanel({
         ) : null}
       </div>
 
-      <Conversation className="min-h-0">
+      <Conversation className="min-h-0 overflow-x-hidden">
         <ConversationContent className="gap-3 p-3">
           {visibleMessages.length ? visibleMessages.map((message) => (
             <Message from={message.role} key={message.id}>
-              <MessageContent>
-                {message.role === "assistant" ? (
-                  <Suspense fallback={<p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>}>
-                    {renderAssistantMessage(message.content, busy)}
-                  </Suspense>
-                ) : (
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>
-                )}
-              </MessageContent>
-              <MessageActions className={message.role === "user" ? "justify-end" : ""}>
-                <MessageAction tooltip="复制" onClick={() => onCopy(message.content)}>
-                  <Copy className="size-3.5" />
-                </MessageAction>
-              </MessageActions>
+              <div className={cn("group/message relative min-w-0 max-w-full overflow-hidden", message.role === "user" ? "ml-auto" : "")}>
+                <MessageContent className="break-words pr-8 [overflow-wrap:anywhere]">
+                  {message.role === "assistant" ? (
+                    <Suspense fallback={<p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>}>
+                      {renderAssistantMessage(message.content, busy)}
+                    </Suspense>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>
+                  )}
+                </MessageContent>
+                <MessageActions className="absolute right-1.5 top-1.5 opacity-0 transition-opacity group-hover/message:opacity-100 group-focus-within/message:opacity-100">
+                  <MessageAction tooltip="复制" className="size-7 bg-background/80 shadow-sm backdrop-blur hover:bg-background" onClick={() => onCopy(message.content)}>
+                    <Copy className="size-3.5" />
+                  </MessageAction>
+                </MessageActions>
+              </div>
             </Message>
           )) : (
             <ConversationEmptyState
@@ -308,7 +299,7 @@ export function AIChatPanel({
         ) : null}
         <Textarea
           ref={promptRef}
-          className="max-h-44 min-h-20 resize-none"
+          className="h-24 max-h-24 min-h-24 resize-none overflow-y-auto field-sizing-fixed"
           placeholder="输入问题，Enter 发送，Shift+Enter 换行"
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}

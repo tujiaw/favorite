@@ -69,7 +69,6 @@ export function App() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [favoritesListWidth, setFavoritesListWidth] = useState(420);
-  const [activeWorkspace, setActiveWorkspace] = useState<"favorites" | "chat">("favorites");
   const [chatPopupOpen, setChatPopupOpen] = useState(false);
   const [chatPopupMinimized, setChatPopupMinimized] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -187,7 +186,6 @@ export function App() {
   }, []);
 
   function openChatPopup() {
-    setActiveWorkspace("chat");
     setChatPopupOpen(true);
     setChatPopupMinimized(false);
   }
@@ -401,7 +399,6 @@ export function App() {
   }
 
   async function selectFavoriteItem(item: FavoriteItem) {
-    setActiveWorkspace("favorites");
     setSelectedId(item.id);
     void markItemUsed(item);
     setPasswordVisible(false);
@@ -1158,30 +1155,24 @@ export function App() {
           tagFilter={tagFilter}
           specialFilter={specialFilter}
           showAllTags={showAllTags}
-          activeWorkspace={activeWorkspace}
           onToggle={() => setSidebarCollapsed((value) => !value)}
-          onChat={openChatPopup}
           onType={(type) => {
-            setActiveWorkspace("favorites");
             setTypeFilter(type);
             setFavoriteOnly(false);
             setTagFilter(null);
             setSpecialFilter(null);
           }}
           onRecent={() => {
-            setActiveWorkspace("favorites");
             setSpecialFilter("recent");
             setTypeFilter("all");
             setFavoriteOnly(false);
             setTagFilter(null);
           }}
           onFavorite={() => {
-            setActiveWorkspace("favorites");
             setFavoriteOnly((value) => !value);
             setSpecialFilter(null);
           }}
           onTag={(tag) => {
-            setActiveWorkspace("favorites");
             setTagFilter(tag);
             setSpecialFilter(null);
           }}
@@ -1366,7 +1357,6 @@ export function App() {
         onOpenSettings={() => setSettingsModal(true)}
         onClose={() => {
           setChatPopupOpen(false);
-          setActiveWorkspace("favorites");
           setChatPopupMinimized(false);
         }}
       />

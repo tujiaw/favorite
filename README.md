@@ -136,7 +136,7 @@ https://你的项目 ref.supabase.co/auth/v1/callback
 
 ## UI 与主题
 
-- shadcn/ui 组件位于 `src/components/ui/`，包括 Button、Input、Textarea、Dialog、AlertDialog、Select、Tabs、Dropdown Menu、Tooltip、ScrollArea、Badge、Card、Label、Separator。
+- shadcn/ui 组件位于 `src/components/ui/`，包括 AlertDialog、Badge、Button、ButtonGroup、Card、Command、Dialog、Dropdown Menu、Input、InputGroup、Label、ScrollArea、Select、Separator、Tabs、Textarea、Tooltip。
 - `src/components/theme-provider.tsx` 和 `src/components/theme-toggle.tsx` 提供白天、晚上、跟随系统主题切换。
 - shadcn 主题 token 定义在 `src/styles.css`，页面布局使用 Tailwind utility 和 shadcn/ui 组件完成。
 
