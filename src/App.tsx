@@ -1210,7 +1210,7 @@ export function App() {
             <ScrollArea viewportRef={favoritesListScrollRef} className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:pr-1">
               {filteredItems.length ? (
                 viewMode === "list" ? (
-                  <div className="relative p-1" style={{ height: `${listVirtualizer.getTotalSize()}px` }}>
+                  <div className="relative" style={{ height: `${listVirtualizer.getTotalSize()}px` }}>
                     {listVirtualizer.getVirtualItems().map((virtualRow) => {
                       const item = filteredItems[virtualRow.index];
                       if (!item) return null;
@@ -1219,11 +1219,12 @@ export function App() {
                           key={item.id}
                           data-index={virtualRow.index}
                           ref={listVirtualizer.measureElement}
-                          className="absolute left-0 top-0 w-full px-1 pb-0.5"
+                          className="absolute left-0 top-0 w-full"
                           style={{ transform: `translateY(${virtualRow.start}px)` }}
                         >
                           <ItemCard
                             item={item}
+                            variant="list"
                             selected={selectedItem?.id === item.id}
                             onSelect={() => void selectFavoriteItem(item)}
                           />
@@ -1252,6 +1253,7 @@ export function App() {
                             <ItemCard
                               item={item}
                               key={item.id}
+                              variant="grid"
                               selected={selectedItem?.id === item.id}
                               onSelect={() => void selectFavoriteItem(item)}
                             />
