@@ -388,6 +388,11 @@ export function App() {
     requestAnimationFrame(() => favoritesListScrollRef.current?.scrollTo({ top: 0 }));
   }
 
+  function syncDeletedItem(itemId: string) {
+    setItems((current) => current.filter((candidate) => candidate.id !== itemId));
+    setSelectedId((current) => (current === itemId ? null : current));
+  }
+
   function setAccountSecretError(itemId: string, message: string) {
     setAccountSecretErrors((current) => {
       const next = { ...current };
@@ -468,7 +473,6 @@ export function App() {
       setCreateModal(false);
       setModalTab("favorite");
       setStatus(`已保存为${TYPE_META[type].label}`);
-      await refreshItems(context, item.id);
     } catch (error: unknown) {
       setStatus(`保存失败：${errorMessage(error)}`);
     } finally {
@@ -494,7 +498,6 @@ export function App() {
     setCreateModal(false);
     setModalTab("favorite");
     setStatus("图片已保存");
-    await refreshItems(context, item.id);
   }
 
   async function uploadEditorImage(file: File) {
@@ -536,7 +539,6 @@ export function App() {
     setModalTab("favorite");
     setRevealedSecret(null);
     setStatus("账号记录已加密保存");
-    await refreshItems(context, item.id);
   }
 
   async function importBitwardenExport(file?: File) {
@@ -590,7 +592,6 @@ export function App() {
     const next = { ...selectedItem, ...patch, updated_at: new Date().toISOString() };
     await saveFavoriteFor(context, next);
     syncSavedItem(next);
-    await refreshItems(context, next.id);
   }
 
   async function markItemUsed(item: FavoriteItem) {
@@ -667,11 +668,11 @@ export function App() {
 
   async function deleteSelected() {
     if (!selectedItem) return;
-    await deleteFavoriteFor(context, selectedItem.id);
+    const deletedId = selectedItem.id;
+    await deleteFavoriteFor(context, deletedId);
+    syncDeletedItem(deletedId);
     setDeleteConfirm(false);
-    setSelectedId(null);
     setStatus("已删除收藏");
-    await refreshItems(context, null);
   }
 
   async function copyAccountPassword() {
@@ -724,7 +725,6 @@ export function App() {
     await saveFavoriteFor(context, clone);
     syncSavedItem(clone);
     setStatus("已复制为新收藏");
-    await refreshItems(context, clone.id);
   }
 
   function exportSelected() {
