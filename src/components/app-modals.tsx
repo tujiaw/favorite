@@ -99,21 +99,13 @@ export function InlineAIModal({ busy, hasSelection, x, y, onClose, onSubmit }: {
 export function CreateModal(props: {
   modalTab: ModalTab;
   quickInput: string;
-  quickTitleDraft: string;
   quickSaving: boolean;
-  quickInputPreview: {
-    typeLabel: string;
-    title: string;
-    domain: string;
-    preview: string;
-  } | null;
   status: string;
   hasVaultPassword: boolean;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   bitwardenFileInputRef: React.RefObject<HTMLInputElement | null>;
   onTab: (tab: ModalTab) => void;
   onQuickInput: (value: string) => void;
-  onQuickTitle: (value: string) => void;
   onClose: () => void;
   onSaveQuick: () => void;
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
@@ -145,25 +137,6 @@ export function CreateModal(props: {
               onPaste={props.onPaste}
               disabled={props.quickSaving}
             />
-            {props.quickInputPreview ? (
-              <div className="mt-3 rounded-md border bg-muted/30 p-3">
-                <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
-                  <Badge variant="secondary" className="shrink-0">{props.quickInputPreview.typeLabel}</Badge>
-                  {props.quickInputPreview.domain ? <span className="min-w-0 truncate text-xs text-muted-foreground">{props.quickInputPreview.domain}</span> : null}
-                </div>
-                <div className="grid gap-1">
-                  <Label className="text-xs text-muted-foreground">标题</Label>
-                  <Input
-                    className="h-8"
-                    value={props.quickTitleDraft}
-                    placeholder={props.quickInputPreview.title}
-                    disabled={props.quickSaving}
-                    onChange={(event) => props.onQuickTitle(event.target.value)}
-                  />
-                </div>
-                <div className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{props.quickInputPreview.preview}</div>
-              </div>
-            ) : null}
             <div className="mt-3 flex items-center justify-between gap-2">
               <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{props.status}</p>
               <Input className="hidden" type="file" accept="image/*" ref={props.fileInputRef} onChange={(event) => props.onImage(event.target.files?.[0])} />

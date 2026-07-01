@@ -76,7 +76,6 @@ export function App() {
   const [status, setStatusValue] = useState("");
   const [toastStatus, setToastStatus] = useState("");
   const [quickInput, setQuickInput] = useState("");
-  const [quickTitleDraft, setQuickTitleDraft] = useState("");
   const [quickSaving, setQuickSaving] = useState(false);
   const [booted, setBooted] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -362,23 +361,17 @@ export function App() {
     estimateSize: () => 92,
     overscan: 6
   });
+
+  useEffect(() => {
+    listVirtualizer.measure();
+    gridVirtualizer.measure();
+  }, [favoritesListWidth, filteredItems.length, gridColumnCount, viewMode]);
+
   const selectedAccountSecretError = selectedItem ? accountSecretErrors[selectedItem.id] || "" : "";
   const tags = useMemo(() => tagCounts(items), [items]);
   const typeCounts = useMemo(() => countTypes(items), [items]);
   const availableChatModels = useMemo(() => buildAvailableChatModels(llmConfig, llmConfigs), [llmConfig, llmConfigs]);
   const activeChatModel = availableChatModels.find((model) => getChatModelId(model) === chatModelId) || availableChatModels[0] || llmConfig;
-  const quickInputPreview = useMemo(() => {
-    const content = quickInput.trim();
-    if (!content) return null;
-    const type = classifyContent(content) as FavoriteType;
-    return {
-      type,
-      typeLabel: TYPE_META[type].label,
-      title: titleFromContent(content, type),
-      domain: type === "link" ? domainFromUrl(content) || "" : "",
-      preview: makePreview(content)
-    };
-  }, [quickInput]);
   const hasActiveFilters = Boolean(query.trim() || typeFilter !== "all" || favoriteOnly || tagFilter || specialFilter);
 
   function clearListFilters() {
@@ -387,6 +380,12 @@ export function App() {
     setFavoriteOnly(false);
     setTagFilter(null);
     setSpecialFilter(null);
+  }
+
+  function syncSavedItem(item: FavoriteItem) {
+    setItems((current) => [item, ...current.filter((candidate) => candidate.id !== item.id)]);
+    setSelectedId(item.id);
+    requestAnimationFrame(() => favoritesListScrollRef.current?.scrollTo({ top: 0 }));
   }
 
   function setAccountSecretError(itemId: string, message: string) {
@@ -456,7 +455,7 @@ export function App() {
       const type = classifyContent(content) as FavoriteType;
       const item = createBaseItem({
         type,
-        title: quickTitleDraft.trim() || titleFromContent(content, type),
+        title: titleFromContent(content, type),
         content,
         preview: makePreview(content),
         source_url: type === "link" ? content : null,
@@ -464,8 +463,8 @@ export function App() {
       }) as FavoriteItem;
       item.user_id = user.id;
       await saveFavoriteFor(context, item);
+      syncSavedItem(item);
       setQuickInput("");
-      setQuickTitleDraft("");
       setCreateModal(false);
       setModalTab("favorite");
       setStatus(`已保存为${TYPE_META[type].label}`);
@@ -491,6 +490,7 @@ export function App() {
     }) as FavoriteItem;
     item.user_id = user.id;
     await saveFavoriteFor(context, item);
+    syncSavedItem(item);
     setCreateModal(false);
     setModalTab("favorite");
     setStatus("图片已保存");
@@ -531,6 +531,7 @@ export function App() {
     }) as FavoriteItem;
     item.user_id = user.id;
     await saveFavoriteFor(context, item);
+    syncSavedItem(item);
     setCreateModal(false);
     setModalTab("favorite");
     setRevealedSecret(null);
@@ -588,6 +589,7 @@ export function App() {
     if (!selectedItem) return;
     const next = { ...selectedItem, ...patch, updated_at: new Date().toISOString() };
     await saveFavoriteFor(context, next);
+    syncSavedItem(next);
     await refreshItems(context, next.id);
   }
 
@@ -720,6 +722,7 @@ export function App() {
     clone.note = selectedItem.note;
     clone.favorite = selectedItem.favorite;
     await saveFavoriteFor(context, clone);
+    syncSavedItem(clone);
     setStatus("已复制为新收藏");
     await refreshItems(context, clone.id);
   }
@@ -1125,7 +1128,6 @@ export function App() {
         isInstalledPwa={isInstalledPwa}
         onQuery={setQuery}
         onCreate={() => {
-          setQuickTitleDraft("");
           setCreateModal(true);
           setModalTab("favorite");
         }}
@@ -1298,7 +1300,6 @@ export function App() {
             aiSummaryExpanded={aiSummaryExpanded}
             inlineAISelection={inlineAISelection}
             onCreate={() => {
-              setQuickTitleDraft("");
               setCreateModal(true);
             }}
             onFavorite={() => selectedItem && updateSelected({ favorite: !selectedItem.favorite })}
@@ -1366,20 +1367,16 @@ export function App() {
         <CreateModal
           modalTab={modalTab}
           quickInput={quickInput}
-          quickTitleDraft={quickTitleDraft}
           quickSaving={quickSaving}
-          quickInputPreview={quickInputPreview}
           status={status}
           hasVaultPassword={Boolean(vaultPassword)}
           fileInputRef={fileInputRef}
           bitwardenFileInputRef={bitwardenFileInputRef}
           onTab={setModalTab}
           onQuickInput={setQuickInput}
-          onQuickTitle={setQuickTitleDraft}
           onClose={() => {
             setCreateModal(false);
             setModalTab("favorite");
-            setQuickTitleDraft("");
           }}
           onSaveQuick={saveQuickInput}
           onPaste={async (event) => {
